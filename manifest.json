@@ -1,0 +1,15 @@
+{
+  "name": "Khata Manager Pro",
+  "short_name": "Khata",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2933/2933116.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

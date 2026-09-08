@@ -1,0 +1,645 @@
+<<<<<<< HEAD
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Ledger | Premium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .recording-glow { box-shadow: 0 0 20px rgba(239, 68, 68, 0.6); animation: pulse-red 1.5s infinite; }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+    </style>
+</head>
+<body class="bg-gray-950 text-white min-h-screen flex justify-center p-4 antialiased">
+
+<div class="w-full max-w-md flex flex-col gap-6 pt-4">
+    <!-- Header -->
+    <div class="text-center">
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">Voice Ledger</h1>
+        <p class="text-gray-500 text-sm mt-1">Smart AI Assistant</p>
+    </div>
+
+    <!-- Recording Console -->
+    <div class="glass-card rounded-3xl p-8 flex flex-col items-center shadow-2xl relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+        
+        <button id="record-btn" class="w-24 h-24 rounded-full bg-blue-600 hover:bg-blue-500 transition-all duration-300 flex items-center justify-center shadow-lg group">
+            <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+            </svg>
+        </button>
+        
+        <p id="status" class="mt-6 text-sm font-medium text-gray-400 tracking-wide">Tap mic to record transaction</p>
+    </div>
+
+    <!-- Transaction History -->
+    <div class="flex-1 mt-2">
+        <div class="flex justify-between items-center mb-4 px-1">
+            <h2 class="text-lg font-semibold text-gray-200">Recent Entries</h2>
+            <span class="text-xs font-medium bg-gray-800 text-gray-400 px-2 py-1 rounded-full">Live Sync</span>
+        </div>
+        
+        <div id="ledger-list" class="flex flex-col gap-3 pb-8">
+            <!-- Entries inject here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    let mediaRecorder;
+    let audioChunks = [];
+    const recordBtn = document.getElementById('record-btn');
+    const statusText = document.getElementById('status');
+    const ledgerList = document.getElementById('ledger-list');
+    let isRecording = false;
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const response = await fetch("/transactions");
+            if (!response.ok) throw new Error("Database offline");
+            const history = await response.json();
+            if (Array.isArray(history)) history.forEach(entry => addEntryToUI(entry, false));
+        } catch (err) {
+            statusText.textContent = "Offline. Check connection.";
+            statusText.className = "mt-6 text-sm font-medium text-red-400 tracking-wide";
+        }
+    });
+
+    recordBtn.addEventListener('click', async () => {
+        if (!isRecording) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await sendAudioToBackend(audioBlob);
+                };
+                
+                mediaRecorder.start();
+                isRecording = true;
+                
+                // UI changes for recording
+                recordBtn.classList.remove('bg-blue-600', 'hover:bg-blue-500');
+                recordBtn.classList.add('bg-red-500', 'recording-glow');
+                recordBtn.innerHTML = `<svg class="w-10 h-10 text-white animate-pulse" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"></path></svg>`;
+                statusText.textContent = 'Listening... Tap square to stop';
+                statusText.className = "mt-6 text-sm font-medium text-red-400 tracking-wide";
+            } catch (err) {
+                alert("Microphone access required!");
+            }
+        } else {
+            mediaRecorder.stop();
+            isRecording = false;
+            
+            // UI changes for processing
+            recordBtn.classList.remove('bg-red-500', 'recording-glow');
+            recordBtn.classList.add('bg-blue-600', 'hover:bg-blue-500');
+            recordBtn.innerHTML = `<svg class="w-10 h-10 text-white animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+            statusText.textContent = 'Extracting data via AI...';
+            statusText.className = "mt-6 text-sm font-medium text-blue-400 tracking-wide";
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+    });
+
+    async function sendAudioToBackend(blob) {
+        const formData = new FormData();
+        formData.append("audio_file", blob, "recording.webm");
+
+        try {
+            const response = await fetch("/extract-audio", { method: "POST", body: formData });
+            if (!response.ok) throw new Error("Extraction failed");
+            
+            const data = await response.json();
+            addEntryToUI(data, true); 
+            
+            // Reset UI
+            recordBtn.innerHTML = `<svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>`;
+            statusText.textContent = 'Success! Ready for next.';
+            statusText.className = "mt-6 text-sm font-medium text-emerald-400 tracking-wide";
+            setTimeout(() => {
+                statusText.textContent = 'Tap mic to record transaction';
+                statusText.className = "mt-6 text-sm font-medium text-gray-400 tracking-wide";
+            }, 3000);
+        } catch (error) {
+            statusText.textContent = 'Error processing audio.';
+            statusText.className = "mt-6 text-sm font-medium text-red-500 tracking-wide";
+        }
+    }
+
+    function addEntryToUI(data, prepend = false) {
+        const isCredit = data.transaction_type === 'credit';
+        const safeItems = Array.isArray(data.items_purchased) ? data.items_purchased : [];
+        const itemsList = safeItems.length > 0 ? safeItems.join(', ') : 'No items';
+
+        const card = document.createElement('div');
+        card.className = 'glass-card rounded-2xl p-4 flex justify-between items-center transition-all hover:bg-gray-800/50';
+        
+        card.innerHTML = `
+            <div class="flex flex-col">
+                <span class="text-gray-100 font-semibold text-lg capitalize">${data.customer_name || 'Unknown'}</span>
+                <span class="text-gray-400 text-xs mt-1 truncate max-w-[200px]">${itemsList}</span>
+            </div>
+            <div class="flex flex-col items-end">
+                <span class="text-xl font-bold ${isCredit ? 'text-red-400' : 'text-emerald-400'}">
+                    ${isCredit ? '-' : '+'}₹${data.amount || 0}
+                </span>
+                <span class="text-[10px] uppercase tracking-wider font-bold mt-1 px-2 py-0.5 rounded-full ${isCredit ? 'bg-red-400/10 text-red-400' : 'bg-emerald-400/10 text-emerald-400'}">
+                    ${data.transaction_type || 'paid'}
+                </span>
+            </div>
+        `;
+        
+        if (prepend) {
+            ledgerList.prepend(card);
+            // Quick flash animation for new entries
+            card.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 400, easing: 'ease-out' });
+        } else {
+            ledgerList.appendChild(card);
+        }
+    }
+</script>
+</body>
+</html>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Khata Manager Pro | Glass Edition</title>
+    
+    <!-- PWA Manifest & Theme Color -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom Scrollbar for dark theme */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+        
+        @keyframes subtlePulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .recording-active {
+            animation: subtlePulse 1.5s infinite;
+            background-color: #ef4444 !important; 
+            color: white !important;
+        }
+    </style>
+</head>
+<body class="text-slate-200 antialiased h-screen flex overflow-hidden relative bg-slate-950">
+
+    <!-- AMBIENT BACKGROUND GLOW (The secret to good Glassmorphism) -->
+    <div class="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+        <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-indigo-600/30 rounded-full blur-[100px]"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-emerald-600/20 rounded-full blur-[100px]"></div>
+        <div class="absolute top-[40%] left-[60%] w-72 h-72 bg-rose-600/20 rounded-full blur-[120px]"></div>
+    </div>
+
+    <!-- DESKTOP SIDEBAR -->
+    <aside class="hidden md:flex flex-col w-64 bg-white/5 backdrop-blur-2xl border-r border-white/10 h-full shadow-2xl z-20">
+        <div class="p-6 flex items-center space-x-3 border-b border-white/10">
+            <div class="w-8 h-8 bg-indigo-500 rounded flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                <i class="fa-solid fa-book text-white text-sm"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight text-white">KhataManager</h1>
+            </div>
+        </div>
+        <nav class="flex-1 p-4 space-y-2">
+            <a href="#" class="flex items-center space-x-3 bg-white/10 text-white px-4 py-2.5 rounded-xl font-medium border border-white/10 shadow-sm">
+                <i class="fa-solid fa-table-list w-5"></i>
+                <span class="text-sm">Ledger</span>
+            </a>
+            <a href="#" onclick="exportToCSV()" class="flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-white/5 px-4 py-2.5 rounded-xl font-medium transition-colors">
+                <i class="fa-solid fa-file-arrow-down w-5"></i>
+                <span class="text-sm">Download Report</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 flex flex-col h-full relative z-10">
+        
+        <!-- Top App Bar (Glass) -->
+        <header class="bg-white/5 backdrop-blur-xl border-b border-white/10 px-4 py-4 flex items-center justify-between z-10 shadow-sm">
+            <div class="md:hidden flex items-center space-x-2">
+                <div class="w-7 h-7 bg-indigo-500 rounded flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                    <i class="fa-solid fa-book text-white text-xs"></i>
+                </div>
+                <h1 class="font-bold text-lg text-white">KhataManager</h1>
+            </div>
+            <h2 class="hidden md:block font-semibold text-white text-lg">Business Ledger</h2>
+            
+            <div class="flex items-center space-x-2">
+                <button onclick="exportToCSV()" class="md:hidden w-9 h-9 flex items-center justify-center rounded-full bg-white/10 text-white border border-white/10 hover:bg-white/20 transition-all">
+                    <i class="fa-solid fa-download"></i>
+                </button>
+                <button onclick="toggleModal()" class="hidden md:flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium shadow-lg shadow-indigo-600/30 transition-all text-sm border border-indigo-500/50">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>New Entry</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Scrollable Ledger -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-6 pb-28 md:pb-6">
+            
+            <!-- Summary Cards (Glass) -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-white/5 backdrop-blur-lg rounded-2xl p-5 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">To Collect (Udhar)</span>
+                    <span id="total-credit" class="text-2xl font-bold text-rose-400">₹0</span>
+                </div>
+                <div class="bg-white/5 backdrop-blur-lg rounded-2xl p-5 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Received (Jama)</span>
+                    <span id="total-paid" class="text-2xl font-bold text-emerald-400">₹0</span>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="hidden text-center py-16 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 border-dashed">
+                <i class="fa-solid fa-clipboard-list text-4xl text-white/20 mb-3"></i>
+                <p class="text-slate-400 font-medium text-sm">Your ledger is empty</p>
+            </div>
+
+            <!-- Ledger List -->
+            <div id="ledger-list" class="space-y-3"></div>
+        </div>
+
+        <!-- WHATSAPP-STYLE BOTTOM INPUT BAR (Glass Pill) with NEW CAMERA BUTTON -->
+        <div class="fixed md:absolute bottom-4 left-4 right-4 md:left-auto md:w-[420px] bg-slate-900/60 backdrop-blur-2xl rounded-full shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/10 px-2 py-2 flex items-center gap-2 z-20">
+            
+            <!-- Standard Plus Button -->
+            <button onclick="toggleModal()" class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+
+            <!-- NEW: Camera/Scan Button -->
+            <button onclick="document.getElementById('receipt-upload').click()" class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors">
+                <i class="fa-solid fa-camera"></i>
+            </button>
+            
+            <!-- Hidden File Input for Camera -->
+            <input type="file" id="receipt-upload" accept="image/*" capture="environment" class="hidden" onchange="uploadReceipt(event)">
+            
+            <!-- Fake Input Field -->
+            <div id="status-bar" class="flex-1 bg-black/20 rounded-full border border-white/5 px-4 py-2.5 flex items-center justify-between text-sm text-slate-400 font-medium cursor-pointer hover:bg-black/40 transition-colors" onclick="toggleModal()">
+                <span id="status-text" class="truncate">Type, scan, or mic...</span>
+            </div>
+
+            <!-- Native looking Mic Button -->
+            <button id="master-record-btn" class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-indigo-500 text-white shadow-lg shadow-indigo-500/40 transition-all border border-indigo-400/50">
+                <i id="master-mic-icon" class="fa-solid fa-microphone text-sm"></i>
+            </button>
+        </div>
+    </main>
+
+    <!-- Manual Entry Modal (Frosted Glass) -->
+    <div id="manual-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center md:p-4 transition-all">
+        <div class="bg-slate-900/80 backdrop-blur-2xl w-full max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-2xl border border-white/10">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-lg text-white">Add Entry</h3>
+                <button onclick="toggleModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <label class="block text-xs font-semibold text-slate-400 mb-1">Customer Name</label>
+            <input type="text" id="manual-name" placeholder="e.g. Ramesh" class="w-full mb-4 p-3.5 border border-white/10 rounded-xl bg-black/30 text-white placeholder-slate-500 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all">
+            
+            <label class="block text-xs font-semibold text-slate-400 mb-1">Amount</label>
+            <input type="number" id="manual-amount" placeholder="₹ 0.00" class="w-full mb-6 p-3.5 border border-white/10 rounded-xl bg-black/30 text-white placeholder-slate-500 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all">
+            
+            <div class="flex space-x-3 mb-6">
+                <button id="btn-udhar" onclick="setManualType('credit')" class="flex-1 py-3 rounded-xl border-2 border-rose-500/50 bg-rose-500/10 text-rose-400 font-semibold text-sm transition-all shadow-[0_0_15px_rgba(244,63,94,0.1)]">Given (Udhar)</button>
+                <button id="btn-jama" onclick="setManualType('paid')" class="flex-1 py-3 rounded-xl border border-white/10 bg-white/5 text-slate-300 font-semibold text-sm transition-all hover:bg-white/10">Received (Jama)</button>
+            </div>
+            
+            <button onclick="saveManualEntry()" id="save-manual-btn" class="w-full bg-indigo-600 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition-colors border border-indigo-500/50">Save Entry</button>
+        </div>
+    </div>
+
+    <!-- Customer Profile Khata Modal (Frosted Glass) -->
+    <div id="profile-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900/80 backdrop-blur-2xl border border-white/10 w-full max-w-sm rounded-2xl p-5 shadow-2xl flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                <h3 id="profile-customer-name" class="font-bold text-lg text-white capitalize">Customer Account</h3>
+                <button onclick="toggleProfileModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="bg-black/30 p-4 rounded-xl border border-white/5 mb-5 flex items-center justify-between">
+                <div>
+                    <span class="text-xs text-slate-400 block mb-1">Net Balance</span>
+                    <span id="profile-net-balance" class="text-2xl font-bold text-white">₹0</span>
+                </div>
+                <a id="profile-whatsapp-btn" href="#" target="_blank" class="hidden bg-emerald-500 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 transition-colors">
+                    <i class="fa-brands fa-whatsapp text-xl"></i>
+                </a>
+            </div>
+
+            <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Transaction History</h4>
+            <div class="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scroll" id="profile-transactions-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- PWA SERVICE WORKER REGISTRATION ---
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(() => console.log("PWA Service Worker Registered Successfully"))
+                .catch((err) => console.log("Service Worker Registration Failed:", err));
+        }
+
+        let allTransactions = [];
+        let isRecording = false;
+        let totalCredit = 0;
+        let totalPaid = 0;
+        let manualType = 'credit';
+
+        const ledgerList = document.getElementById('ledger-list');
+        const emptyState = document.getElementById('empty-state');
+        const totalCreditEl = document.getElementById('total-credit');
+        const totalPaidEl = document.getElementById('total-paid');
+        
+        const masterBtn = document.getElementById('master-record-btn');
+        const masterIcon = document.getElementById('master-mic-icon');
+        const statusText = document.getElementById('status-text');
+        const statusBar = document.getElementById('status-bar');
+
+        function toggleModal() { document.getElementById('manual-modal').classList.toggle('hidden'); }
+        function toggleProfileModal() { document.getElementById('profile-modal').classList.toggle('hidden'); }
+
+        function setManualType(type) {
+            manualType = type;
+            const btnUdhar = document.getElementById('btn-udhar');
+            const btnJama = document.getElementById('btn-jama');
+            if (type === 'credit') {
+                btnUdhar.className = "flex-1 py-3 rounded-xl border-2 border-rose-500/50 bg-rose-500/10 text-rose-400 font-semibold text-sm transition-all shadow-[0_0_15px_rgba(244,63,94,0.1)]";
+                btnJama.className = "flex-1 py-3 rounded-xl border border-white/10 bg-white/5 text-slate-300 font-semibold text-sm transition-all hover:bg-white/10";
+            } else {
+                btnJama.className = "flex-1 py-3 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/10 text-emerald-400 font-semibold text-sm transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)]";
+                btnUdhar.className = "flex-1 py-3 rounded-xl border border-white/10 bg-white/5 text-slate-300 font-semibold text-sm transition-all hover:bg-white/10";
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/transactions');
+                if (res.ok) {
+                    allTransactions = await res.json();
+                    if (allTransactions.length > 0) allTransactions.forEach(item => addEntryToUI(item, false));
+                    else emptyState.classList.remove('hidden');
+                }
+            } catch (err) {}
+        });
+
+        function exportToCSV() {
+            if (allTransactions.length === 0) return alert("No data to export.");
+            let csvContent = "Date,Name,Type,Amount (Rs),Items\n";
+            allTransactions.forEach(t => {
+                const date = t.created_at ? new Date(t.created_at).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
+                const name = (t.customer_name || 'Unknown').replace(/,/g, '');
+                csvContent += `${date},${name},${(t.transaction_type || '').toUpperCase()},${t.amount || 0},${Array.isArray(t.items_purchased) ? t.items_purchased.join('|') : 'Manual'}\n`;
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `Ledger_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function openCustomerProfile(customerName) {
+            document.getElementById('profile-customer-name').textContent = customerName;
+            const container = document.getElementById('profile-transactions-list');
+            container.innerHTML = '';
+            let customerCredit = 0, customerPaid = 0;
+
+            const filtered = allTransactions.filter(t => (t.customer_name || '').toLowerCase() === customerName.toLowerCase());
+            filtered.forEach(t => {
+                const isCredit = (t.transaction_type || '').toLowerCase() === 'credit';
+                const amt = parseFloat(t.amount) || 0;
+                if (isCredit) customerCredit += amt; else customerPaid += amt;
+
+                const row = document.createElement('div');
+                row.className = "bg-white/5 p-3 rounded-xl border border-white/5 flex items-center justify-between";
+                row.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-1.5 h-6 rounded-full ${isCredit ? 'bg-rose-400' : 'bg-emerald-400'}"></div>
+                        <p class="text-xs text-slate-300 line-clamp-1">${Array.isArray(t.items_purchased) ? t.items_purchased.join(', ') : 'Manual'}</p>
+                    </div>
+                    <span class="font-semibold text-sm ${isCredit ? 'text-rose-400' : 'text-emerald-400'}">₹${amt}</span>
+                `;
+                container.appendChild(row);
+            });
+
+            const netPending = customerCredit - customerPaid;
+            const netBalanceEl = document.getElementById('profile-net-balance');
+            netBalanceEl.textContent = `₹${Math.abs(netPending)}`;
+            netBalanceEl.className = netPending > 0 ? "text-2xl font-bold text-rose-400" : "text-2xl font-bold text-emerald-400";
+
+            const waBtn = document.getElementById('profile-whatsapp-btn');
+            if (netPending > 0) {
+                waBtn.href = `https://wa.me/?text=${encodeURIComponent(`Hello ${customerName}, pending balance: ₹${netPending}. Please clear it.`)}`;
+                waBtn.classList.remove('hidden');
+            } else waBtn.classList.add('hidden');
+
+            toggleProfileModal();
+        }
+
+        async function deleteTransaction(id, amount, type) {
+            if (!confirm("Delete record?")) return;
+            try {
+                const res = await fetch(`/transactions/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    document.getElementById(`txn-${id}`).remove();
+                    allTransactions = allTransactions.filter(t => t.id !== id);
+                    if ((type || '').toLowerCase() === 'credit') {
+                        totalCredit = Math.max(0, totalCredit - amount);
+                        totalCreditEl.textContent = `₹${totalCredit.toLocaleString('en-IN')}`;
+                    } else {
+                        totalPaid = Math.max(0, totalPaid - amount);
+                        totalPaidEl.textContent = `₹${totalPaid.toLocaleString('en-IN')}`;
+                    }
+                    if (ledgerList.children.length === 0) emptyState.classList.remove('hidden');
+                }
+            } catch (err) {}
+        }
+
+        async function saveManualEntry() {
+            const name = document.getElementById('manual-name').value;
+            const amount = document.getElementById('manual-amount').value;
+            const saveBtn = document.getElementById('save-manual-btn');
+            if (!name || !amount) return;
+
+            saveBtn.textContent = "Saving...";
+            try {
+                const res = await fetch('/add-transaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ customer_name: name, amount: parseFloat(amount), transaction_type: manualType })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    allTransactions.unshift(data);
+                    addEntryToUI(data, true);
+                    toggleModal();
+                    document.getElementById('manual-name').value = '';
+                    document.getElementById('manual-amount').value = '';
+                    setManualType('credit');
+                }
+            } catch (err) {}
+            finally { saveBtn.textContent = "Save Entry"; }
+        }
+
+        // Add entry to UI (Updates UI in real-time)
+        function addEntryToUI(data, prepend = true) {
+            emptyState.classList.add('hidden');
+            const isCredit = (data.transaction_type || '').toLowerCase() === 'credit';
+            const amount = parseFloat(data.amount) || 0;
+
+            if (isCredit) totalCredit += amount; else totalPaid += amount;
+            totalCreditEl.textContent = `₹${totalCredit.toLocaleString('en-IN')}`;
+            totalPaidEl.textContent = `₹${totalPaid.toLocaleString('en-IN')}`;
+
+            const wrapper = document.createElement('div');
+            wrapper.id = `txn-${data.id}`;
+            wrapper.className = "bg-white/5 backdrop-blur-md p-3.5 rounded-xl border border-white/10 shadow-[0_4px_15px_rgba(0,0,0,0.1)] hover:bg-white/10 transition-all flex items-center justify-between";
+            
+            wrapper.innerHTML = `
+                <div class="flex items-center space-x-3 w-2/3" onclick="openCustomerProfile('${data.customer_name}')" style="cursor:pointer">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-inner ${isCredit ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
+                        ${data.customer_name.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="flex-1 truncate pr-2">
+                        <h3 class="font-semibold text-white capitalize text-sm">${data.customer_name}</h3>
+                        <p class="text-[11px] text-slate-400 font-medium truncate">${Array.isArray(data.items_purchased) ? data.items_purchased.join(', ') : 'Manual Entry'}</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end w-1/3 space-x-2 md:space-x-4">
+                    <span class="font-bold text-base ${isCredit ? 'text-rose-400' : 'text-emerald-400'}">₹${amount}</span>
+                    <button onclick="deleteTransaction('${data.id}', ${amount}, '${data.transaction_type}')" class="text-slate-500 hover:text-rose-400 p-2 transition-colors">
+                        <i class="fa-solid fa-trash-can text-sm"></i>
+                    </button>
+                </div>
+            `;
+            if (prepend) ledgerList.prepend(wrapper); else ledgerList.appendChild(wrapper);
+        }
+
+        // --- AUDIO RECORDING LOGIC ---
+        let mediaRecorder;
+        let audioChunks = [];
+        masterBtn.addEventListener('click', async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                        await sendAudio(blob);
+                    };
+                    mediaRecorder.start();
+                    isRecording = true;
+                    
+                    masterBtn.classList.add('recording-active');
+                    masterIcon.classList.replace('fa-microphone', 'fa-stop');
+                    statusText.textContent = "Listening...";
+                    statusText.className = "text-rose-400 font-semibold truncate";
+                    statusBar.classList.add('border-rose-500/30', 'bg-rose-500/10');
+                } catch (err) { alert("Mic permission needed."); }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                if (mediaRecorder.stream) mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                
+                masterBtn.classList.remove('recording-active');
+                masterIcon.classList.replace('fa-stop', 'fa-microphone');
+                statusText.textContent = "Saving to ledger...";
+                statusText.className = "text-indigo-400 font-semibold animate-pulse truncate";
+                statusBar.classList.remove('border-rose-500/30', 'bg-rose-500/10');
+            }
+        });
+
+        async function sendAudio(blob) {
+            const formData = new FormData();
+            formData.append("audio_file", blob, "recording.webm");
+            try {
+                const res = await fetch('/extract-audio', { method: 'POST', body: formData });
+                if(!res.ok) throw new Error("API Limit or Error");
+                const transaction = await res.json();
+                allTransactions.unshift(transaction);
+                addEntryToUI(transaction, true);
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+                
+                statusText.textContent = "Saved successfully!";
+                statusText.className = "text-emerald-400 font-semibold truncate";
+                setTimeout(() => {
+                    statusText.textContent = "Type, scan, or mic...";
+                    statusText.className = "text-slate-400 font-medium truncate";
+                }, 2000);
+            } catch (err) {
+                statusText.textContent = "Failed (Check Quota)";
+                statusText.className = "text-rose-500 font-semibold truncate";
+                setTimeout(() => { statusText.className = "text-slate-400 font-medium truncate"; statusText.textContent = "Type, scan, or mic..."; }, 3000);
+            }
+        }
+
+        // --- RECEIPT SCANNING LOGIC ---
+        async function uploadReceipt(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            statusText.textContent = "Scanning receipt...";
+            statusText.className = "text-indigo-400 font-semibold animate-pulse truncate";
+            statusBar.classList.add('border-indigo-500/30', 'bg-indigo-500/10');
+            
+            const formData = new FormData();
+            formData.append("receipt_image", file);
+
+            try {
+                const res = await fetch('/extract-receipt', { method: 'POST', body: formData });
+                if(!res.ok) throw new Error("API Limit or Error");
+                
+                const transaction = await res.json();
+                allTransactions.unshift(transaction);
+                addEntryToUI(transaction, true);
+                
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+                
+                statusText.textContent = "Receipt saved!";
+                statusText.className = "text-emerald-400 font-semibold truncate";
+            } catch (err) {
+                statusText.textContent = "Scan failed (Check Quota)";
+                statusText.className = "text-rose-500 font-semibold truncate";
+            } finally {
+                setTimeout(() => { 
+                    statusText.className = "text-slate-400 font-medium truncate"; 
+                    statusText.textContent = "Type, scan, or mic..."; 
+                    statusBar.classList.remove('border-indigo-500/30', 'bg-indigo-500/10');
+                    document.getElementById('receipt-upload').value = ''; 
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>
+>>>>>>> 64319c15b2bf9fa9781c3fbad2a6f7ef41fd7f89
