@@ -1,173 +1,3 @@
-<<<<<<< HEAD
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Ledger | Premium</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .recording-glow { box-shadow: 0 0 20px rgba(239, 68, 68, 0.6); animation: pulse-red 1.5s infinite; }
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
-    </style>
-</head>
-<body class="bg-gray-950 text-white min-h-screen flex justify-center p-4 antialiased">
-
-<div class="w-full max-w-md flex flex-col gap-6 pt-4">
-    <!-- Header -->
-    <div class="text-center">
-        <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">Voice Ledger</h1>
-        <p class="text-gray-500 text-sm mt-1">Smart AI Assistant</p>
-    </div>
-
-    <!-- Recording Console -->
-    <div class="glass-card rounded-3xl p-8 flex flex-col items-center shadow-2xl relative overflow-hidden">
-        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
-        
-        <button id="record-btn" class="w-24 h-24 rounded-full bg-blue-600 hover:bg-blue-500 transition-all duration-300 flex items-center justify-center shadow-lg group">
-            <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
-            </svg>
-        </button>
-        
-        <p id="status" class="mt-6 text-sm font-medium text-gray-400 tracking-wide">Tap mic to record transaction</p>
-    </div>
-
-    <!-- Transaction History -->
-    <div class="flex-1 mt-2">
-        <div class="flex justify-between items-center mb-4 px-1">
-            <h2 class="text-lg font-semibold text-gray-200">Recent Entries</h2>
-            <span class="text-xs font-medium bg-gray-800 text-gray-400 px-2 py-1 rounded-full">Live Sync</span>
-        </div>
-        
-        <div id="ledger-list" class="flex flex-col gap-3 pb-8">
-            <!-- Entries inject here -->
-        </div>
-    </div>
-</div>
-
-<script>
-    let mediaRecorder;
-    let audioChunks = [];
-    const recordBtn = document.getElementById('record-btn');
-    const statusText = document.getElementById('status');
-    const ledgerList = document.getElementById('ledger-list');
-    let isRecording = false;
-
-    window.addEventListener('DOMContentLoaded', async () => {
-        try {
-            const response = await fetch("/transactions");
-            if (!response.ok) throw new Error("Database offline");
-            const history = await response.json();
-            if (Array.isArray(history)) history.forEach(entry => addEntryToUI(entry, false));
-        } catch (err) {
-            statusText.textContent = "Offline. Check connection.";
-            statusText.className = "mt-6 text-sm font-medium text-red-400 tracking-wide";
-        }
-    });
-
-    recordBtn.addEventListener('click', async () => {
-        if (!isRecording) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-                
-                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    await sendAudioToBackend(audioBlob);
-                };
-                
-                mediaRecorder.start();
-                isRecording = true;
-                
-                // UI changes for recording
-                recordBtn.classList.remove('bg-blue-600', 'hover:bg-blue-500');
-                recordBtn.classList.add('bg-red-500', 'recording-glow');
-                recordBtn.innerHTML = `<svg class="w-10 h-10 text-white animate-pulse" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"></path></svg>`;
-                statusText.textContent = 'Listening... Tap square to stop';
-                statusText.className = "mt-6 text-sm font-medium text-red-400 tracking-wide";
-            } catch (err) {
-                alert("Microphone access required!");
-            }
-        } else {
-            mediaRecorder.stop();
-            isRecording = false;
-            
-            // UI changes for processing
-            recordBtn.classList.remove('bg-red-500', 'recording-glow');
-            recordBtn.classList.add('bg-blue-600', 'hover:bg-blue-500');
-            recordBtn.innerHTML = `<svg class="w-10 h-10 text-white animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
-            statusText.textContent = 'Extracting data via AI...';
-            statusText.className = "mt-6 text-sm font-medium text-blue-400 tracking-wide";
-            mediaRecorder.stream.getTracks().forEach(track => track.stop());
-        }
-    });
-
-    async function sendAudioToBackend(blob) {
-        const formData = new FormData();
-        formData.append("audio_file", blob, "recording.webm");
-
-        try {
-            const response = await fetch("/extract-audio", { method: "POST", body: formData });
-            if (!response.ok) throw new Error("Extraction failed");
-            
-            const data = await response.json();
-            addEntryToUI(data, true); 
-            
-            // Reset UI
-            recordBtn.innerHTML = `<svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>`;
-            statusText.textContent = 'Success! Ready for next.';
-            statusText.className = "mt-6 text-sm font-medium text-emerald-400 tracking-wide";
-            setTimeout(() => {
-                statusText.textContent = 'Tap mic to record transaction';
-                statusText.className = "mt-6 text-sm font-medium text-gray-400 tracking-wide";
-            }, 3000);
-        } catch (error) {
-            statusText.textContent = 'Error processing audio.';
-            statusText.className = "mt-6 text-sm font-medium text-red-500 tracking-wide";
-        }
-    }
-
-    function addEntryToUI(data, prepend = false) {
-        const isCredit = data.transaction_type === 'credit';
-        const safeItems = Array.isArray(data.items_purchased) ? data.items_purchased : [];
-        const itemsList = safeItems.length > 0 ? safeItems.join(', ') : 'No items';
-
-        const card = document.createElement('div');
-        card.className = 'glass-card rounded-2xl p-4 flex justify-between items-center transition-all hover:bg-gray-800/50';
-        
-        card.innerHTML = `
-            <div class="flex flex-col">
-                <span class="text-gray-100 font-semibold text-lg capitalize">${data.customer_name || 'Unknown'}</span>
-                <span class="text-gray-400 text-xs mt-1 truncate max-w-[200px]">${itemsList}</span>
-            </div>
-            <div class="flex flex-col items-end">
-                <span class="text-xl font-bold ${isCredit ? 'text-red-400' : 'text-emerald-400'}">
-                    ${isCredit ? '-' : '+'}₹${data.amount || 0}
-                </span>
-                <span class="text-[10px] uppercase tracking-wider font-bold mt-1 px-2 py-0.5 rounded-full ${isCredit ? 'bg-red-400/10 text-red-400' : 'bg-emerald-400/10 text-emerald-400'}">
-                    ${data.transaction_type || 'paid'}
-                </span>
-            </div>
-        `;
-        
-        if (prepend) {
-            ledgerList.prepend(card);
-            // Quick flash animation for new entries
-            card.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 400, easing: 'ease-out' });
-        } else {
-            ledgerList.appendChild(card);
-        }
-    }
-</script>
-</body>
-</html>
-=======
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -204,7 +34,7 @@
 </head>
 <body class="text-slate-200 antialiased h-screen flex overflow-hidden relative bg-slate-950">
 
-    <!-- AMBIENT BACKGROUND GLOW (The secret to good Glassmorphism) -->
+    <!-- AMBIENT BACKGROUND GLOW -->
     <div class="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-indigo-600/30 rounded-full blur-[100px]"></div>
         <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-emerald-600/20 rounded-full blur-[100px]"></div>
@@ -236,7 +66,7 @@
     <!-- MAIN CONTENT AREA -->
     <main class="flex-1 flex flex-col h-full relative z-10">
         
-        <!-- Top App Bar (Glass) -->
+        <!-- Top App Bar -->
         <header class="bg-white/5 backdrop-blur-xl border-b border-white/10 px-4 py-4 flex items-center justify-between z-10 shadow-sm">
             <div class="md:hidden flex items-center space-x-2">
                 <div class="w-7 h-7 bg-indigo-500 rounded flex items-center justify-center shadow-lg shadow-indigo-500/30">
@@ -260,7 +90,7 @@
         <!-- Scrollable Ledger -->
         <div class="flex-1 overflow-y-auto p-4 md:p-6 pb-28 md:pb-6">
             
-            <!-- Summary Cards (Glass) -->
+            <!-- Summary Cards -->
             <div class="grid grid-cols-2 gap-4 mb-6">
                 <div class="bg-white/5 backdrop-blur-lg rounded-2xl p-5 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]">
                     <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">To Collect (Udhar)</span>
@@ -282,7 +112,7 @@
             <div id="ledger-list" class="space-y-3"></div>
         </div>
 
-        <!-- WHATSAPP-STYLE BOTTOM INPUT BAR (Glass Pill) with NEW CAMERA BUTTON -->
+        <!-- BOTTOM INPUT BAR -->
         <div class="fixed md:absolute bottom-4 left-4 right-4 md:left-auto md:w-[420px] bg-slate-900/60 backdrop-blur-2xl rounded-full shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/10 px-2 py-2 flex items-center gap-2 z-20">
             
             <!-- Standard Plus Button -->
@@ -290,7 +120,7 @@
                 <i class="fa-solid fa-plus"></i>
             </button>
 
-            <!-- NEW: Camera/Scan Button -->
+            <!-- Camera/Scan Button -->
             <button onclick="document.getElementById('receipt-upload').click()" class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors">
                 <i class="fa-solid fa-camera"></i>
             </button>
@@ -310,7 +140,7 @@
         </div>
     </main>
 
-    <!-- Manual Entry Modal (Frosted Glass) -->
+    <!-- Manual Entry Modal -->
     <div id="manual-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center md:p-4 transition-all">
         <div class="bg-slate-900/80 backdrop-blur-2xl w-full max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-2xl border border-white/10">
             <div class="flex justify-between items-center mb-6">
@@ -333,7 +163,7 @@
         </div>
     </div>
 
-    <!-- Customer Profile Khata Modal (Frosted Glass) -->
+    <!-- Customer Profile Khata Modal -->
     <div id="profile-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-slate-900/80 backdrop-blur-2xl border border-white/10 w-full max-w-sm rounded-2xl p-5 shadow-2xl flex flex-col max-h-[80vh]">
             <div class="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
@@ -512,6 +342,7 @@
             emptyState.classList.add('hidden');
             const isCredit = (data.transaction_type || '').toLowerCase() === 'credit';
             const amount = parseFloat(data.amount) || 0;
+            const safeName = data.customer_name || 'Unknown'; // Fix for null names
 
             if (isCredit) totalCredit += amount; else totalPaid += amount;
             totalCreditEl.textContent = `₹${totalCredit.toLocaleString('en-IN')}`;
@@ -522,12 +353,12 @@
             wrapper.className = "bg-white/5 backdrop-blur-md p-3.5 rounded-xl border border-white/10 shadow-[0_4px_15px_rgba(0,0,0,0.1)] hover:bg-white/10 transition-all flex items-center justify-between";
             
             wrapper.innerHTML = `
-                <div class="flex items-center space-x-3 w-2/3" onclick="openCustomerProfile('${data.customer_name}')" style="cursor:pointer">
+                <div class="flex items-center space-x-3 w-2/3" onclick="openCustomerProfile('${safeName}')" style="cursor:pointer">
                     <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-inner ${isCredit ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
-                        ${data.customer_name.charAt(0).toUpperCase()}
+                        ${safeName.charAt(0).toUpperCase()}
                     </div>
                     <div class="flex-1 truncate pr-2">
-                        <h3 class="font-semibold text-white capitalize text-sm">${data.customer_name}</h3>
+                        <h3 class="font-semibold text-white capitalize text-sm">${safeName}</h3>
                         <p class="text-[11px] text-slate-400 font-medium truncate">${Array.isArray(data.items_purchased) ? data.items_purchased.join(', ') : 'Manual Entry'}</p>
                     </div>
                 </div>
@@ -545,12 +376,14 @@
         // --- AUDIO RECORDING LOGIC ---
         let mediaRecorder;
         let audioChunks = [];
+        let activeStream = null; // Fix for media stream crash
+
         masterBtn.addEventListener('click', async () => {
             if (navigator.vibrate) navigator.vibrate(50);
             if (!isRecording) {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
+                    activeStream = await navigator.mediaDevices.getUserMedia({ audio: true }); 
+                    mediaRecorder = new MediaRecorder(activeStream);
                     audioChunks = [];
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.onstop = async () => {
@@ -569,7 +402,7 @@
             } else {
                 mediaRecorder.stop();
                 isRecording = false;
-                if (mediaRecorder.stream) mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                if (activeStream) activeStream.getTracks().forEach(track => track.stop()); 
                 
                 masterBtn.classList.remove('recording-active');
                 masterIcon.classList.replace('fa-stop', 'fa-microphone');
@@ -597,7 +430,7 @@
                     statusText.className = "text-slate-400 font-medium truncate";
                 }, 2000);
             } catch (err) {
-                statusText.textContent = "Failed (Check Quota)";
+                statusText.textContent = "Failed (Check Quota or API Key)";
                 statusText.className = "text-rose-500 font-semibold truncate";
                 setTimeout(() => { statusText.className = "text-slate-400 font-medium truncate"; statusText.textContent = "Type, scan, or mic..."; }, 3000);
             }
@@ -628,7 +461,7 @@
                 statusText.textContent = "Receipt saved!";
                 statusText.className = "text-emerald-400 font-semibold truncate";
             } catch (err) {
-                statusText.textContent = "Scan failed (Check Quota)";
+                statusText.textContent = "Scan failed (Check Quota or API Key)";
                 statusText.className = "text-rose-500 font-semibold truncate";
             } finally {
                 setTimeout(() => { 
@@ -642,4 +475,3 @@
     </script>
 </body>
 </html>
-
