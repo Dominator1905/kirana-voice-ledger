@@ -2,6 +2,7 @@ import os
 import json
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -12,7 +13,16 @@ import traceback
 # Load environment variables
 load_dotenv()
 
-app = FastAPI()
+app = FastAPI(title="Smart-Budget AI Support Agent")
+
+# Enable CORS for frontend communication
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- SUPABASE SETUP ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -24,14 +34,12 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- GEMINI KEY ROTATION SETUP ---
-# It will look for 'GEMINI_API_KEYS' (plural, comma-separated) or fallback to the old 'GEMINI_API_KEY'
 keys_string = os.getenv("GEMINI_API_KEYS", os.getenv("GEMINI_API_KEY", ""))
 API_KEYS = [k.strip() for k in keys_string.split(",") if k.strip()]
 
 if not API_KEYS:
     raise ValueError("Missing Gemini API Keys. Please set GEMINI_API_KEYS.")
 
-# Global variable to keep track of which key we are currently using
 current_key_index = 0
 
 def ask_gemini_with_rotation(prompt, file_bytes, mime_type):
@@ -45,10 +53,9 @@ def ask_gemini_with_rotation(prompt, file_bytes, mime_type):
         print(f"Trying API Key #{current_key_index + 1}...")
         
         try:
-            # Initialize client with the current active key
             client = genai.Client(api_key=active_key)
             response = client.models.generate_content(
-                model='gemini-3.6-flash',
+                model='gemini-3.6-flash', # Updated to 1.5-flash for speed/reliability
                 contents=[
                     types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
                     prompt
@@ -58,16 +65,13 @@ def ask_gemini_with_rotation(prompt, file_bytes, mime_type):
             
         except Exception as e:
             error_message = str(e).lower()
-            # If the error is about quota/limits (429), rotate the key
             if "429" in error_message or "quota" in error_message or "exhausted" in error_message:
                 print(f"Key #{current_key_index + 1} is exhausted! Switching keys...")
                 current_key_index = (current_key_index + 1) % len(API_KEYS)
                 attempts += 1
             else:
-                # If it's a different kind of error, stop and raise it
                 raise e
                 
-    # If the loop finishes, it means ALL keys are dead
     raise Exception("ALL API KEYS HAVE EXHAUSTED THEIR QUOTAS!")
 
 
@@ -77,12 +81,16 @@ class ManualTransaction(BaseModel):
     amount: float
     transaction_type: str
 
-# --- ROUTES ---
+class LoginRequest(BaseModel):
+    phone_number: str
+    pin: str
+
+
+# --- FRONTEND & PWA ROUTES ---
 @app.get("/")
 async def serve_frontend():
     return FileResponse("index.html")
 
-# --- NEW PWA ROUTES ---
 @app.get("/manifest.json")
 async def get_manifest():
     return FileResponse("manifest.json")
@@ -90,8 +98,67 @@ async def get_manifest():
 @app.get("/sw.js")
 async def get_sw():
     return FileResponse("sw.js")
-# ----------------------
 
+
+# --- AUTHENTICATION ROUTES ---
+@app.post("/auth/fallback")
+async def fallback_login(req: LoginRequest):
+    try:
+        response = supabase.table("vendors").select("*").eq("phone_number", req.phone_number).eq("pin", req.pin).execute()
+        if not response.data:
+            raise HTTPException(status_code=401, detail="Invalid phone number or PIN")
+        return {"status": "success", "vendor": response.data[0]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/auth/voice")
+async def voice_login(audio: UploadFile = File(...)):
+    try:
+        audio_bytes = await audio.read()
+        incoming_type = audio.content_type or ""
+        safe_mime_type = "audio/mp4" if "mp4" in incoming_type else "audio/webm"
+        
+        prompt = """
+        Listen to this audio. The user is a shopkeeper stating their shop name and a 4-digit passcode.
+        Extract the information and return ONLY a raw JSON object.
+        JSON format:
+        {
+          "shop_name": "extracted shop name",
+          "pin": "extracted 4-digit pin"
+        }
+        """
+        
+        result_text = ask_gemini_with_rotation(prompt, audio_bytes, safe_mime_type)
+        
+        # Parse JSON safely
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].strip()
+            
+        extracted = json.loads(result_text)
+        shop_name = extracted.get("shop_name", "")
+        pin = str(extracted.get("pin", ""))
+        
+        # Authenticate against DB
+        response = supabase.table("vendors").select("*").ilike("shop_name", f"%{shop_name}%").eq("pin", pin).execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=401, detail=f"Voice auth failed: Match not found for {shop_name}.")
+            
+        return {
+            "status": "success", 
+            "method": "voice",
+            "vendor": response.data[0],
+            "extracted_debug": extracted
+        }
+    except Exception as e:
+        print(f"AUTH AUDIO ERROR: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- LEDGER / TRANSACTION ROUTES ---
 @app.get("/transactions")
 async def get_transactions():
     try:
@@ -155,7 +222,6 @@ async def extract_audio(audio_file: UploadFile = File(...)):
             
         transaction_data = json.loads(result_text)
         
-        # Round decimals to whole numbers for Supabase
         if "amount" in transaction_data:
             transaction_data["amount"] = int(round(float(transaction_data["amount"])))
         
@@ -199,7 +265,6 @@ async def extract_receipt(receipt_image: UploadFile = File(...)):
             
         transaction_data = json.loads(result_text)
         
-        # Round decimals to whole numbers for Supabase
         if "amount" in transaction_data:
             transaction_data["amount"] = int(round(float(transaction_data["amount"])))
         
