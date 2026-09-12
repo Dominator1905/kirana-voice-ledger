@@ -4,6 +4,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import List, Optional
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from google import genai
@@ -43,23 +44,52 @@ if not API_KEYS:
 current_key_index = 0
 
 def ask_gemini_with_rotation(prompt, file_bytes, mime_type):
-    """Tries to ask Gemini. If the key is exhausted, it rotates to the next one."""
+    """Tries to ask Gemini for multimodal (audio/vision). If the key is exhausted, it rotates to the next one."""
     global current_key_index
     attempts = 0
     max_attempts = len(API_KEYS)
     
     while attempts < max_attempts:
         active_key = API_KEYS[current_key_index]
-        print(f"Trying API Key #{current_key_index + 1}...")
+        print(f"Trying API Key #{current_key_index + 1} for multimodal...")
         
         try:
             client = genai.Client(api_key=active_key)
             response = client.models.generate_content(
-                model='gemini-3.6-flash', # Corrected model name
+                model='gemini-1.5-flash',
                 contents=[
                     types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
                     prompt
                 ]
+            )
+            return response.text.strip()
+            
+        except Exception as e:
+            error_message = str(e).lower()
+            if "429" in error_message or "quota" in error_message or "exhausted" in error_message:
+                print(f"Key #{current_key_index + 1} is exhausted! Switching keys...")
+                current_key_index = (current_key_index + 1) % len(API_KEYS)
+                attempts += 1
+            else:
+                raise e
+                
+    raise Exception("ALL API KEYS HAVE EXHAUSTED THEIR QUOTAS!")
+
+def ask_gemini_text(prompt):
+    """Uses Gemini for text-only analysis tasks."""
+    global current_key_index
+    attempts = 0
+    max_attempts = len(API_KEYS)
+    
+    while attempts < max_attempts:
+        active_key = API_KEYS[current_key_index]
+        print(f"Trying API Key #{current_key_index + 1} for text analysis...")
+        
+        try:
+            client = genai.Client(api_key=active_key)
+            response = client.models.generate_content(
+                model='gemini-1.5-flash',
+                contents=[prompt]
             )
             return response.text.strip()
             
@@ -80,6 +110,7 @@ class ManualTransaction(BaseModel):
     customer_name: str
     amount: float
     transaction_type: str
+    items_purchased: Optional[List[str]] = ["Manual Entry"] # Updated for Settle Account
 
 class LoginRequest(BaseModel):
     phone_number: str
@@ -179,7 +210,7 @@ async def add_transaction(transaction: ManualTransaction, x_vendor_phone: str = 
         "customer_name": transaction.customer_name,
         "amount": transaction.amount,
         "transaction_type": transaction.transaction_type,
-        "items_purchased": ["Manual Entry"],
+        "items_purchased": transaction.items_purchased,
         "low_stock_flags": [],
         "vendor_phone": x_vendor_phone # TAG IT: Connect transaction to vendor
     }
@@ -197,6 +228,38 @@ async def delete_transaction(transaction_id: str, x_vendor_phone: str = Header(N
         # SECURITY: Ensure they can only delete their own transactions
         supabase.table("transactions").delete().eq("id", transaction_id).eq("vendor_phone", x_vendor_phone).execute()
         return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ai-advisor")
+async def get_ai_advice(x_vendor_phone: str = Header(None)):
+    if not x_vendor_phone:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        # Fetch recent transactions to give the AI context
+        response = supabase.table("transactions").select("*").eq("vendor_phone", x_vendor_phone).order("created_at", desc=True).limit(50).execute()
+        transactions = response.data
+        
+        if not transactions:
+            return {"advice": "Your ledger is empty. Start adding transactions to get business insights!"}
+        
+        tx_summary = []
+        for t in transactions:
+            tx_summary.append(f"Name: {t.get('customer_name')}, Type: {t.get('transaction_type')}, Amount: {t.get('amount')}, Items: {t.get('items_purchased')}")
+        
+        data_string = "\n".join(tx_summary)
+        
+        prompt = f"""
+        You are an expert AI business advisor for a small Indian retail shop.
+        Here are the shop's recent transactions:
+        {data_string}
+        
+        Analyze this data and provide exactly 2 short, punchy sentences of business advice. 
+        Focus on cash flow (high Udhar), top customers, or fast-moving items. 
+        Use a helpful, encouraging tone. Do not use markdown formatting.
+        """
+        advice = ask_gemini_text(prompt)
+        return {"advice": advice}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
