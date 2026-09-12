@@ -122,15 +122,12 @@
                 <h2 id="header-shop-name" class="hidden md:block font-semibold text-white text-lg">Business Ledger</h2>
                 
                 <div class="flex items-center space-x-3">
-                    <!-- NEW LOGOUT BUTTON -->
                     <button onclick="logout()" title="Logout" class="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:text-rose-400 hover:bg-white/10 border border-white/10 transition-all">
                         <i class="fa-solid fa-arrow-right-from-bracket text-sm"></i>
                     </button>
-                    <!-- EXPORT BUTTON -->
                     <button onclick="exportToCSV()" class="md:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 transition-all">
                         <i class="fa-solid fa-download text-sm"></i>
                     </button>
-                    <!-- NEW ENTRY BUTTON (DESKTOP) -->
                     <button onclick="toggleModal()" class="hidden md:flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-indigo-500/25 transition-all text-sm border border-indigo-400/30">
                         <i class="fa-solid fa-plus"></i>
                         <span>New Entry</span>
@@ -142,7 +139,7 @@
             <div class="flex-1 overflow-y-auto p-4 md:p-6 pb-32 md:pb-6 relative" id="scroll-container">
                 
                 <!-- Summary Cards -->
-                <div class="grid grid-cols-2 gap-4 mb-8">
+                <div class="grid grid-cols-2 gap-4 mb-6">
                     <div class="glass-panel rounded-2xl p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] relative overflow-hidden group">
                         <div class="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-xl group-hover:bg-rose-500/20 transition-all"></div>
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">To Collect (Udhar)</span>
@@ -155,13 +152,19 @@
                     </div>
                 </div>
 
+                <!-- NEW: Real-time Search Filter -->
+                <div class="mb-6 relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                    <input type="text" id="search-input" onkeyup="filterLedger()" placeholder="Search by customer name or item..." class="w-full bg-black/40 border border-white/10 rounded-2xl py-3.5 pl-11 pr-4 text-white text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all shadow-inner placeholder-slate-500">
+                </div>
+
                 <!-- Empty State -->
-                <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 glass-panel rounded-3xl border-dashed border-white/10 mt-4">
+                <div id="empty-state" class="hidden flex flex-col items-center justify-center py-10 glass-panel rounded-3xl border-dashed border-white/10 mt-4">
                     <div class="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
                         <i class="fa-solid fa-clipboard-list text-2xl text-slate-500"></i>
                     </div>
-                    <p class="text-slate-300 font-semibold">Your ledger is empty</p>
-                    <p class="text-slate-500 text-sm mt-1">Tap the mic to add your first entry</p>
+                    <p class="text-slate-300 font-semibold">No entries found</p>
+                    <p class="text-slate-500 text-sm mt-1">Tap the mic to add an entry</p>
                 </div>
 
                 <!-- Bifurcated Ledger List -->
@@ -258,7 +261,6 @@
         const loginStatusText = document.getElementById('login-status-text');
         const headerShopName = document.getElementById('header-shop-name');
 
-        // Check if user is already logged in on page load
         function checkExistingSession() {
             const isLoggedIn = localStorage.getItem("vendor_logged_in");
             const shopName = localStorage.getItem("vendor_shop_name");
@@ -271,23 +273,19 @@
             }
         }
         
-        // Run immediately
         checkExistingSession();
 
-        // Logout function
         function logout() {
             localStorage.removeItem("vendor_logged_in");
             localStorage.removeItem("vendor_shop_name");
-            localStorage.removeItem("vendor_phone"); // Clear the phone number tag!
+            localStorage.removeItem("vendor_phone");
             window.location.reload();
         }
 
-        // Complete Login & Save Session
         function completeLogin(shopName, phone) {
-            // Save to localStorage
             localStorage.setItem("vendor_logged_in", "true");
             localStorage.setItem("vendor_shop_name", shopName);
-            localStorage.setItem("vendor_phone", phone); // SAVE PHONE NUMBER FOR HEADERS
+            localStorage.setItem("vendor_phone", phone);
 
             loginStatusText.textContent = "Success!";
             loginStatusText.className = "mt-4 text-sm font-bold h-5 text-emerald-400";
@@ -311,7 +309,6 @@
             }, 3000);
         }
 
-        // A. PIN Auth
         document.getElementById('fallback-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const phone = document.getElementById('login-phone').value;
@@ -328,14 +325,11 @@
                     body: JSON.stringify({ phone_number: phone, pin: pin })
                 });
                 const data = await res.json();
-                if (res.ok) completeLogin(data.vendor.shop_name, data.vendor.phone_number); // Passes phone
+                if (res.ok) completeLogin(data.vendor.shop_name, data.vendor.phone_number);
                 else showLoginError(data.detail || "Invalid credentials");
-            } catch (err) {
-                showLoginError("Server error.");
-            }
+            } catch (err) { showLoginError("Server error."); }
         });
 
-        // B. Voice Auth
         const loginMicBtn = document.getElementById('login-mic-btn');
         const loginMicIcon = document.getElementById('login-mic-icon');
         let loginRecorder;
@@ -346,7 +340,6 @@
             e.preventDefault();
             if (isLoginRecording) return;
             if (navigator.vibrate) navigator.vibrate(50);
-            
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 loginRecorder = new MediaRecorder(stream);
@@ -360,9 +353,7 @@
                 loginMicIcon.classList.replace('fa-microphone', 'fa-stop');
                 loginStatusText.textContent = "Listening... Release to login";
                 loginStatusText.className = "mt-4 text-sm font-bold h-5 text-rose-400";
-            } catch (err) {
-                showLoginError("Microphone access denied.");
-            }
+            } catch (err) { showLoginError("Microphone access denied."); }
         }
 
         async function stopLoginRecording(e) {
@@ -380,18 +371,15 @@
             loginRecorder.onstop = async () => {
                 const blob = new Blob(loginChunks, { type: 'audio/webm' });
                 loginRecorder.stream.getTracks().forEach(t => t.stop());
-
                 const formData = new FormData();
                 formData.append("audio", blob, "login.webm");
 
                 try {
                     const res = await fetch('/auth/voice', { method: 'POST', body: formData });
                     const data = await res.json();
-                    if (res.ok) completeLogin(data.vendor.shop_name, data.vendor.phone_number); // Passes phone
+                    if (res.ok) completeLogin(data.vendor.shop_name, data.vendor.phone_number);
                     else showLoginError("Voice match failed. Try again.");
-                } catch (err) {
-                    showLoginError("Server error.");
-                }
+                } catch (err) { showLoginError("Server error."); }
             };
         }
 
@@ -399,7 +387,6 @@
         loginMicBtn.addEventListener('touchstart', startLoginRecording, {passive: false});
         window.addEventListener('mouseup', stopLoginRecording);
         window.addEventListener('touchend', stopLoginRecording);
-
 
         // --- 2. LEDGER VARIABLES & DOM ELEMENTS ---
         let allTransactions = [];
@@ -433,30 +420,40 @@
             }
         }
 
-        // --- 3. LEDGER RENDERING LOGIC ---
+        // --- 3. LEDGER RENDERING & FILTER LOGIC ---
+        
+        // NEW: Real-time filter logic
+        function filterLedger() {
+            const term = document.getElementById('search-input').value.toLowerCase();
+            
+            const filteredData = allTransactions.filter(t => {
+                const nameMatch = (t.customer_name || '').toLowerCase().includes(term);
+                const itemsMatch = (Array.isArray(t.items_purchased) ? t.items_purchased.join(' ') : '').toLowerCase().includes(term);
+                return nameMatch || itemsMatch;
+            });
+            
+            // Pass the filtered data to the render function
+            renderLedger(filteredData);
+        }
+
         function formatDateGroup(dateString) {
             const date = new Date(dateString);
             const today = new Date();
             const yesterday = new Date(today);
             yesterday.setDate(yesterday.getDate() - 1);
 
-            const isToday = date.toDateString() === today.toDateString();
-            const isYesterday = date.toDateString() === yesterday.toDateString();
-
-            const options = { day: '2-digit', month: 'short', year: 'numeric' };
-            const formatted = date.toLocaleDateString('en-IN', options);
-
-            if (isToday) return `Today • ${formatted}`;
-            if (isYesterday) return `Yesterday • ${formatted}`;
-            return formatted;
+            if (date.toDateString() === today.toDateString()) return `Today • ${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+            if (date.toDateString() === yesterday.toDateString()) return `Yesterday • ${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+            return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         }
 
-        function renderLedger() {
+        // UPDATED: Now accepts an argument so it can render search results
+        function renderLedger(dataToRender = allTransactions) {
             ledgerList.innerHTML = '';
             totalCredit = 0;
             totalPaid = 0;
 
-            if (allTransactions.length === 0) {
+            if (dataToRender.length === 0) {
                 emptyState.classList.remove('hidden');
                 totalCreditEl.textContent = '₹0';
                 totalPaidEl.textContent = '₹0';
@@ -466,7 +463,7 @@
             emptyState.classList.add('hidden');
             const grouped = {};
 
-            allTransactions.forEach(t => {
+            dataToRender.forEach(t => {
                 const amt = parseFloat(t.amount) || 0;
                 if ((t.transaction_type || '').toLowerCase() === 'credit') totalCredit += amt;
                 else totalPaid += amt;
@@ -493,6 +490,14 @@
                     const safeName = data.customer_name || 'Unknown';
                     const items = Array.isArray(data.items_purchased) && data.items_purchased.length > 0 ? data.items_purchased.join(', ') : 'Manual Entry';
 
+                    // NEW: Generate the Low Stock Warning Badge HTML
+                    let stockWarningHtml = '';
+                    if (Array.isArray(data.low_stock_flags) && data.low_stock_flags.length > 0) {
+                        stockWarningHtml = `<div class="mt-1.5 flex flex-wrap gap-1">
+                            ${data.low_stock_flags.map(item => `<span class="bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Low Stock: ${item}</span>`).join('')}
+                        </div>`;
+                    }
+
                     const wrapper = document.createElement('div');
                     wrapper.id = `txn-${data.id}`;
                     wrapper.className = "bg-white/5 backdrop-blur-sm p-4 rounded-2xl border border-white/5 shadow-sm hover:bg-white/10 transition-all flex items-center justify-between mb-3 group";
@@ -505,6 +510,7 @@
                             <div class="flex-1 truncate pr-2">
                                 <h3 class="font-bold text-slate-200 capitalize text-[15px] tracking-tight">${safeName}</h3>
                                 <p class="text-[12px] text-slate-500 font-medium truncate mt-0.5">${items}</p>
+                                ${stockWarningHtml} <!-- Injects badge if it exists -->
                             </div>
                         </div>
                         <div class="flex items-center justify-end w-1/3 space-x-3">
@@ -523,13 +529,12 @@
 
         async function loadLedgerData() {
             try {
-                // ADDED: Send the x-vendor-phone header so the backend filters data securely
                 const res = await fetch('/transactions', {
                     headers: { 'x-vendor-phone': localStorage.getItem('vendor_phone') }
                 });
                 if (res.ok) {
                     allTransactions = await res.json();
-                    renderLedger();
+                    renderLedger(); // Initial load passes all data
                 }
             } catch (err) {}
         }
@@ -537,14 +542,13 @@
         async function deleteTransaction(id) {
             if (!confirm("Delete record?")) return;
             try {
-                // ADDED: Send the x-vendor-phone header
                 const res = await fetch(`/transactions/${id}`, { 
                     method: 'DELETE',
                     headers: { 'x-vendor-phone': localStorage.getItem('vendor_phone') }
                 });
                 if (res.ok) {
                     allTransactions = allTransactions.filter(t => t.id !== id);
-                    renderLedger();
+                    filterLedger(); // Re-run the active filter so items don't reappear
                 }
             } catch (err) {}
         }
@@ -557,7 +561,6 @@
 
             saveBtn.textContent = "Saving...";
             try {
-                // ADDED: Send the x-vendor-phone header
                 const res = await fetch('/add-transaction', {
                     method: 'POST',
                     headers: { 
@@ -569,7 +572,10 @@
                 if (res.ok) {
                     const data = await res.json();
                     allTransactions.unshift(data);
+                    
+                    document.getElementById('search-input').value = ''; // Reset search bar on new entry
                     renderLedger();
+                    
                     toggleModal();
                     document.getElementById('manual-name').value = '';
                     document.getElementById('manual-amount').value = '';
@@ -663,7 +669,6 @@
             const formData = new FormData();
             formData.append("audio_file", blob, "recording.webm");
             try {
-                // ADDED: Send the x-vendor-phone header
                 const res = await fetch('/extract-audio', { 
                     method: 'POST', 
                     headers: { 'x-vendor-phone': localStorage.getItem('vendor_phone') },
@@ -672,6 +677,8 @@
                 if(!res.ok) throw new Error("API Limit");
                 const transaction = await res.json();
                 allTransactions.unshift(transaction);
+                
+                document.getElementById('search-input').value = ''; // Clear search bar on new entry
                 renderLedger();
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
                 
@@ -701,7 +708,6 @@
             formData.append("receipt_image", file);
 
             try {
-                // ADDED: Send the x-vendor-phone header
                 const res = await fetch('/extract-receipt', { 
                     method: 'POST', 
                     headers: { 'x-vendor-phone': localStorage.getItem('vendor_phone') },
@@ -711,6 +717,8 @@
                 
                 const transaction = await res.json();
                 allTransactions.unshift(transaction);
+                
+                document.getElementById('search-input').value = '';
                 renderLedger();
                 
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
