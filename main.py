@@ -86,7 +86,7 @@ def ask_gemini_text(prompt):
             client = genai.Client(api_key=active_key)
             # FIX 1: Passed as a direct string, not a list
             response = client.models.generate_content(
-                model='gemini-1.5-flash',
+                model='gemini-3.6-flash',
                 contents=prompt
             )
             return response.text.strip()
