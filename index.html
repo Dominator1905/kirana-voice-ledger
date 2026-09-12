@@ -50,103 +50,146 @@
         <div class="absolute top-[30%] left-[50%] w-[300px] h-[300px] bg-rose-600/10 rounded-full blur-[120px]"></div>
     </div>
 
-    <!-- DESKTOP SIDEBAR -->
-    <aside class="hidden md:flex flex-col w-64 glass-panel border-r border-white/5 h-full shadow-2xl z-20">
-        <div class="p-6 flex items-center space-x-3 border-b border-white/5">
-            <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <i class="fa-solid fa-book text-white text-sm"></i>
+    <!-- 1. PREMIUM LOGIN SCREEN -->
+    <div id="login-screen" class="absolute inset-0 z-50 flex items-center justify-center bg-[#020617]/80 backdrop-blur-xl">
+        <div class="glass-panel bg-slate-900/90 p-8 rounded-[32px] w-[90%] max-w-sm shadow-2xl flex flex-col items-center">
+            
+            <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-5">
+                <i class="fa-solid fa-lock text-white text-2xl"></i>
             </div>
-            <div>
-                <h1 class="font-bold text-lg tracking-tight text-white">KhataManager</h1>
-            </div>
-        </div>
-        <nav class="flex-1 p-4 space-y-2">
-            <a href="#" class="flex items-center space-x-3 bg-white/10 text-white px-4 py-3 rounded-xl font-medium border border-white/10 shadow-sm transition-all">
-                <i class="fa-solid fa-table-list w-5"></i>
-                <span class="text-sm">Ledger</span>
-            </a>
-            <a href="#" onclick="exportToCSV()" class="flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl font-medium transition-all">
-                <i class="fa-solid fa-file-arrow-down w-5"></i>
-                <span class="text-sm">Download Report</span>
-            </a>
-        </nav>
-    </aside>
+            
+            <h2 class="text-2xl font-bold text-white tracking-tight">Quick Login</h2>
+            <p class="text-slate-400 text-sm mb-8">Access your KhataManager</p>
 
-    <!-- MAIN CONTENT AREA -->
-    <main class="flex-1 flex flex-col h-full relative z-10">
+            <!-- Voice Auth -->
+            <button id="login-mic-btn" class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.4)] flex items-center justify-center text-white transition-all border border-indigo-400/30">
+                <i id="login-mic-icon" class="fa-solid fa-microphone text-2xl"></i>
+            </button>
+            <p id="login-status-text" class="mt-4 text-sm text-slate-400 font-medium h-5">Hold mic to speak passcode</p>
+
+            <div class="w-full flex items-center my-6 opacity-40">
+                <div class="flex-1 border-t border-white/20"></div>
+                <span class="px-4 text-[10px] font-bold uppercase tracking-widest text-slate-300">OR</span>
+                <div class="flex-1 border-t border-white/20"></div>
+            </div>
+
+            <!-- PIN Auth -->
+            <form id="fallback-form" class="w-full space-y-4">
+                <input type="tel" id="login-phone" placeholder="10-Digit Mobile" class="w-full p-4 border border-white/10 rounded-2xl bg-black/50 text-white placeholder-slate-500 text-sm outline-none focus:border-indigo-500 transition-all shadow-inner text-center tracking-widest">
+                <input type="password" id="login-pin" placeholder="PIN" maxlength="4" class="w-full p-4 border border-white/10 rounded-2xl bg-black/50 text-white placeholder-slate-500 text-xl outline-none focus:border-indigo-500 transition-all shadow-inner text-center tracking-widest">
+                <button type="submit" class="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-4 rounded-2xl transition-all border border-white/5">Login with PIN</button>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- 2. MAIN APP (Hidden until logged in) -->
+    <div id="main-app" class="w-full h-full flex" style="display: none;">
         
-        <!-- Top App Bar -->
-        <header class="glass-panel border-b border-white/5 px-5 py-4 flex items-center justify-between z-20 shadow-sm">
-            <div class="md:hidden flex items-center space-x-3">
-                <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                    <i class="fa-solid fa-book text-white text-xs"></i>
+        <!-- DESKTOP SIDEBAR -->
+        <aside class="hidden md:flex flex-col w-64 glass-panel border-r border-white/5 h-full shadow-2xl z-20">
+            <div class="p-6 flex items-center space-x-3 border-b border-white/5">
+                <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <i class="fa-solid fa-book text-white text-sm"></i>
                 </div>
-                <h1 class="font-bold text-lg text-white tracking-tight">KhataManager</h1>
+                <div>
+                    <h1 class="font-bold text-lg tracking-tight text-white">KhataManager</h1>
+                </div>
             </div>
-            <h2 class="hidden md:block font-semibold text-white text-lg">Business Ledger</h2>
+            <nav class="flex-1 p-4 space-y-2">
+                <a href="#" class="flex items-center space-x-3 bg-white/10 text-white px-4 py-3 rounded-xl font-medium border border-white/10 shadow-sm transition-all">
+                    <i class="fa-solid fa-table-list w-5"></i>
+                    <span class="text-sm">Ledger</span>
+                </a>
+                <a href="#" onclick="exportToCSV()" class="flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl font-medium transition-all">
+                    <i class="fa-solid fa-file-arrow-down w-5"></i>
+                    <span class="text-sm">Download Report</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 flex flex-col h-full relative z-10">
             
-            <div class="flex items-center space-x-3">
-                <button onclick="exportToCSV()" class="md:hidden w-9 h-9 flex items-center justify-center rounded-full bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 transition-all">
-                    <i class="fa-solid fa-download text-sm"></i>
+            <!-- Top App Bar -->
+            <header class="glass-panel border-b border-white/5 px-5 py-4 flex items-center justify-between z-20 shadow-sm">
+                <div class="md:hidden flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                        <i class="fa-solid fa-book text-white text-xs"></i>
+                    </div>
+                    <h1 class="font-bold text-lg text-white tracking-tight">KhataManager</h1>
+                </div>
+                <h2 id="header-shop-name" class="hidden md:block font-semibold text-white text-lg">Business Ledger</h2>
+                
+                <div class="flex items-center space-x-3">
+                    <!-- NEW LOGOUT BUTTON -->
+                    <button onclick="logout()" title="Logout" class="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:text-rose-400 hover:bg-white/10 border border-white/10 transition-all">
+                        <i class="fa-solid fa-arrow-right-from-bracket text-sm"></i>
+                    </button>
+                    <!-- EXPORT BUTTON -->
+                    <button onclick="exportToCSV()" class="md:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 transition-all">
+                        <i class="fa-solid fa-download text-sm"></i>
+                    </button>
+                    <!-- NEW ENTRY BUTTON (DESKTOP) -->
+                    <button onclick="toggleModal()" class="hidden md:flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-indigo-500/25 transition-all text-sm border border-indigo-400/30">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>New Entry</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Scrollable Ledger -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 pb-32 md:pb-6 relative" id="scroll-container">
+                
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-2 gap-4 mb-8">
+                    <div class="glass-panel rounded-2xl p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] relative overflow-hidden group">
+                        <div class="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-xl group-hover:bg-rose-500/20 transition-all"></div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">To Collect (Udhar)</span>
+                        <span id="total-credit" class="text-3xl font-extrabold text-white tracking-tight">₹0</span>
+                    </div>
+                    <div class="glass-panel rounded-2xl p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] relative overflow-hidden group">
+                        <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all"></div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Received (Jama)</span>
+                        <span id="total-paid" class="text-3xl font-extrabold text-white tracking-tight">₹0</span>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 glass-panel rounded-3xl border-dashed border-white/10 mt-4">
+                    <div class="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                        <i class="fa-solid fa-clipboard-list text-2xl text-slate-500"></i>
+                    </div>
+                    <p class="text-slate-300 font-semibold">Your ledger is empty</p>
+                    <p class="text-slate-500 text-sm mt-1">Tap the mic to add your first entry</p>
+                </div>
+
+                <!-- Bifurcated Ledger List -->
+                <div id="ledger-list" class="space-y-1 relative pb-10"></div>
+            </div>
+
+            <!-- PREMIUM BOTTOM INPUT BAR -->
+            <div class="fixed md:absolute bottom-5 left-4 right-4 md:left-auto md:w-[460px] glass-panel bg-slate-950/80 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.5)] border border-white/10 p-2 flex items-center gap-2 z-30">
+                
+                <button onclick="toggleModal()" class="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white transition-all">
+                    <i class="fa-solid fa-keyboard"></i>
                 </button>
-                <button onclick="toggleModal()" class="hidden md:flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-indigo-500/25 transition-all text-sm border border-indigo-400/30">
-                    <i class="fa-solid fa-plus"></i>
-                    <span>New Entry</span>
+
+                <button onclick="document.getElementById('receipt-upload').click()" class="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white transition-all">
+                    <i class="fa-solid fa-camera"></i>
+                </button>
+                <input type="file" id="receipt-upload" accept="image/*" capture="environment" class="hidden" onchange="uploadReceipt(event)">
+                
+                <div id="status-bar" class="flex-1 bg-black/40 rounded-xl border border-white/5 px-4 h-11 flex items-center justify-between text-sm text-slate-400 font-medium cursor-pointer hover:bg-black/60 transition-all shadow-inner" onclick="toggleModal()">
+                    <span id="status-text" class="truncate">Type, scan, or use mic...</span>
+                </div>
+
+                <button id="master-record-btn" class="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-all border border-indigo-400/30">
+                    <i id="master-mic-icon" class="fa-solid fa-microphone"></i>
                 </button>
             </div>
-        </header>
-
-        <!-- Scrollable Ledger -->
-        <div class="flex-1 overflow-y-auto p-4 md:p-6 pb-32 md:pb-6 relative" id="scroll-container">
-            
-            <!-- Summary Cards -->
-            <div class="grid grid-cols-2 gap-4 mb-8">
-                <div class="glass-panel rounded-2xl p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] relative overflow-hidden group">
-                    <div class="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-xl group-hover:bg-rose-500/20 transition-all"></div>
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">To Collect (Udhar)</span>
-                    <span id="total-credit" class="text-3xl font-extrabold text-white tracking-tight">₹0</span>
-                </div>
-                <div class="glass-panel rounded-2xl p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] relative overflow-hidden group">
-                    <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all"></div>
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Received (Jama)</span>
-                    <span id="total-paid" class="text-3xl font-extrabold text-white tracking-tight">₹0</span>
-                </div>
-            </div>
-
-            <!-- Empty State -->
-            <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 glass-panel rounded-3xl border-dashed border-white/10 mt-4">
-                <div class="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
-                    <i class="fa-solid fa-clipboard-list text-2xl text-slate-500"></i>
-                </div>
-                <p class="text-slate-300 font-semibold">Your ledger is empty</p>
-                <p class="text-slate-500 text-sm mt-1">Tap the mic to add your first entry</p>
-            </div>
-
-            <!-- Bifurcated Ledger List -->
-            <div id="ledger-list" class="space-y-1 relative pb-10"></div>
-        </div>
-
-        <!-- PREMIUM BOTTOM INPUT BAR -->
-        <div class="fixed md:absolute bottom-5 left-4 right-4 md:left-auto md:w-[460px] glass-panel bg-slate-950/80 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.5)] border border-white/10 p-2 flex items-center gap-2 z-30">
-            
-            <button onclick="toggleModal()" class="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white transition-all">
-                <i class="fa-solid fa-keyboard"></i>
-            </button>
-
-            <button onclick="document.getElementById('receipt-upload').click()" class="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white transition-all">
-                <i class="fa-solid fa-camera"></i>
-            </button>
-            <input type="file" id="receipt-upload" accept="image/*" capture="environment" class="hidden" onchange="uploadReceipt(event)">
-            
-            <div id="status-bar" class="flex-1 bg-black/40 rounded-xl border border-white/5 px-4 h-11 flex items-center justify-between text-sm text-slate-400 font-medium cursor-pointer hover:bg-black/60 transition-all shadow-inner" onclick="toggleModal()">
-                <span id="status-text" class="truncate">Type, scan, or use mic...</span>
-            </div>
-
-            <button id="master-record-btn" class="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-all border border-indigo-400/30">
-                <i id="master-mic-icon" class="fa-solid fa-microphone"></i>
-            </button>
-        </div>
-    </main>
+        </main>
+    </div>
 
     <!-- Manual Entry Modal -->
     <div id="manual-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-end md:items-center justify-center md:p-4 transition-all duration-300">
@@ -209,6 +252,154 @@
             navigator.serviceWorker.register('/sw.js').catch(() => {});
         }
 
+        // --- 1. AUTHENTICATION & SESSION LOGIC ---
+        const loginScreen = document.getElementById('login-screen');
+        const mainApp = document.getElementById('main-app');
+        const loginStatusText = document.getElementById('login-status-text');
+        const headerShopName = document.getElementById('header-shop-name');
+
+        // Check if user is already logged in on page load
+        function checkExistingSession() {
+            const isLoggedIn = localStorage.getItem("vendor_logged_in");
+            const shopName = localStorage.getItem("vendor_shop_name");
+
+            if (isLoggedIn === "true") {
+                loginScreen.style.display = 'none';
+                mainApp.style.display = 'flex';
+                if (shopName) headerShopName.textContent = shopName;
+                loadLedgerData();
+            }
+        }
+        
+        // Run immediately
+        checkExistingSession();
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem("vendor_logged_in");
+            localStorage.removeItem("vendor_shop_name");
+            window.location.reload();
+        }
+
+        // Complete Login & Save Session
+        function completeLogin(shopName) {
+            // Save to localStorage
+            localStorage.setItem("vendor_logged_in", "true");
+            localStorage.setItem("vendor_shop_name", shopName);
+
+            loginStatusText.textContent = "Success!";
+            loginStatusText.className = "mt-4 text-sm font-bold h-5 text-emerald-400";
+            if (shopName) headerShopName.textContent = shopName;
+            
+            if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+            
+            setTimeout(() => {
+                loginScreen.style.display = 'none';
+                mainApp.style.display = 'flex';
+                loadLedgerData();
+            }, 800);
+        }
+
+        function showLoginError(msg) {
+            loginStatusText.textContent = msg;
+            loginStatusText.className = "mt-4 text-sm font-bold h-5 text-rose-500";
+            setTimeout(() => {
+                loginStatusText.textContent = "Hold mic to speak passcode";
+                loginStatusText.className = "mt-4 text-sm font-medium h-5 text-slate-400";
+            }, 3000);
+        }
+
+        // A. PIN Auth
+        document.getElementById('fallback-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const phone = document.getElementById('login-phone').value;
+            const pin = document.getElementById('login-pin').value;
+            if (!phone || !pin) return;
+
+            loginStatusText.textContent = "Authenticating...";
+            loginStatusText.className = "mt-4 text-sm font-medium h-5 text-indigo-400 animate-pulse";
+
+            try {
+                const res = await fetch('/auth/fallback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone_number: phone, pin: pin })
+                });
+                const data = await res.json();
+                if (res.ok) completeLogin(data.vendor.shop_name);
+                else showLoginError(data.detail || "Invalid credentials");
+            } catch (err) {
+                showLoginError("Server error.");
+            }
+        });
+
+        // B. Voice Auth
+        const loginMicBtn = document.getElementById('login-mic-btn');
+        const loginMicIcon = document.getElementById('login-mic-icon');
+        let loginRecorder;
+        let loginChunks = [];
+        let isLoginRecording = false;
+
+        async function startLoginRecording(e) {
+            e.preventDefault();
+            if (isLoginRecording) return;
+            if (navigator.vibrate) navigator.vibrate(50);
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                loginRecorder = new MediaRecorder(stream);
+                loginChunks = [];
+                loginRecorder.ondataavailable = event => loginChunks.push(event.data);
+                
+                loginRecorder.start();
+                isLoginRecording = true;
+                
+                loginMicBtn.classList.add('recording-active');
+                loginMicIcon.classList.replace('fa-microphone', 'fa-stop');
+                loginStatusText.textContent = "Listening... Release to login";
+                loginStatusText.className = "mt-4 text-sm font-bold h-5 text-rose-400";
+            } catch (err) {
+                showLoginError("Microphone access denied.");
+            }
+        }
+
+        async function stopLoginRecording(e) {
+            e.preventDefault();
+            if (!isLoginRecording || !loginRecorder) return;
+            
+            loginRecorder.stop();
+            isLoginRecording = false;
+            
+            loginMicBtn.classList.remove('recording-active');
+            loginMicIcon.classList.replace('fa-stop', 'fa-microphone');
+            loginStatusText.textContent = "Verifying voice with AI...";
+            loginStatusText.className = "mt-4 text-sm font-bold h-5 text-indigo-400 animate-pulse";
+            
+            loginRecorder.onstop = async () => {
+                const blob = new Blob(loginChunks, { type: 'audio/webm' });
+                loginRecorder.stream.getTracks().forEach(t => t.stop());
+
+                const formData = new FormData();
+                formData.append("audio", blob, "login.webm");
+
+                try {
+                    const res = await fetch('/auth/voice', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (res.ok) completeLogin(data.vendor.shop_name);
+                    else showLoginError("Voice match failed. Try again.");
+                } catch (err) {
+                    showLoginError("Server error.");
+                }
+            };
+        }
+
+        loginMicBtn.addEventListener('mousedown', startLoginRecording);
+        loginMicBtn.addEventListener('touchstart', startLoginRecording, {passive: false});
+        window.addEventListener('mouseup', stopLoginRecording);
+        window.addEventListener('touchend', stopLoginRecording);
+
+
+        // --- 2. LEDGER VARIABLES & DOM ELEMENTS ---
         let allTransactions = [];
         let isRecording = false;
         let totalCredit = 0;
@@ -240,7 +431,7 @@
             }
         }
 
-        // --- NEW BIFURCATION (DATE GROUPING) LOGIC ---
+        // --- 3. LEDGER RENDERING LOGIC ---
         function formatDateGroup(dateString) {
             const date = new Date(dateString);
             const today = new Date();
@@ -273,14 +464,10 @@
             emptyState.classList.add('hidden');
             const grouped = {};
 
-            // Group by date and calculate totals
             allTransactions.forEach(t => {
                 const amt = parseFloat(t.amount) || 0;
-                if ((t.transaction_type || '').toLowerCase() === 'credit') {
-                    totalCredit += amt;
-                } else {
-                    totalPaid += amt;
-                }
+                if ((t.transaction_type || '').toLowerCase() === 'credit') totalCredit += amt;
+                else totalPaid += amt;
 
                 const dateKey = t.created_at ? new Date(t.created_at).toDateString() : new Date().toDateString();
                 if (!grouped[dateKey]) grouped[dateKey] = [];
@@ -290,17 +477,14 @@
             totalCreditEl.textContent = `₹${totalCredit.toLocaleString('en-IN')}`;
             totalPaidEl.textContent = `₹${totalPaid.toLocaleString('en-IN')}`;
 
-            // Sort dates from newest to oldest
             const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
 
             sortedDates.forEach(dateKey => {
-                // STICKY DATE HEADER
                 const dateHeader = document.createElement('div');
                 dateHeader.className = "sticky top-0 z-10 pt-4 pb-2 mb-2 bg-[#020617]/90 backdrop-blur-md";
                 dateHeader.innerHTML = `<span class="text-[11px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">${formatDateGroup(dateKey)}</span>`;
                 ledgerList.appendChild(dateHeader);
 
-                // ITEMS FOR THIS DATE
                 grouped[dateKey].forEach(data => {
                     const isCredit = (data.transaction_type || '').toLowerCase() === 'credit';
                     const amount = parseFloat(data.amount) || 0;
@@ -335,17 +519,16 @@
             });
         }
 
-        window.addEventListener('DOMContentLoaded', async () => {
+        async function loadLedgerData() {
             try {
                 const res = await fetch('/transactions');
                 if (res.ok) {
                     allTransactions = await res.json();
-                    renderLedger(); // Renders the beautiful bifurcated list
+                    renderLedger();
                 }
             } catch (err) {}
-        });
+        }
 
-        // Delete, Save, Audio, Image - All updated to use renderLedger()
         async function deleteTransaction(id) {
             if (!confirm("Delete record?")) return;
             try {
@@ -424,24 +607,24 @@
             toggleProfileModal();
         }
 
-        // --- AUDIO ---
-        let mediaRecorder;
-        let audioChunks = [];
-        let activeStream = null;
+        // --- 4. TRANSACTION AUDIO (LEDGER) ---
+        let masterRecorder;
+        let masterAudioChunks = [];
+        let masterActiveStream = null;
 
         masterBtn.addEventListener('click', async () => {
             if (navigator.vibrate) navigator.vibrate(50);
             if (!isRecording) {
                 try {
-                    activeStream = await navigator.mediaDevices.getUserMedia({ audio: true }); 
-                    mediaRecorder = new MediaRecorder(activeStream);
-                    audioChunks = [];
-                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                    mediaRecorder.onstop = async () => {
-                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    masterActiveStream = await navigator.mediaDevices.getUserMedia({ audio: true }); 
+                    masterRecorder = new MediaRecorder(masterActiveStream);
+                    masterAudioChunks = [];
+                    masterRecorder.ondataavailable = e => masterAudioChunks.push(e.data);
+                    masterRecorder.onstop = async () => {
+                        const blob = new Blob(masterAudioChunks, { type: 'audio/webm' });
                         await sendAudio(blob);
                     };
-                    mediaRecorder.start();
+                    masterRecorder.start();
                     isRecording = true;
                     
                     masterBtn.classList.add('recording-active');
@@ -451,9 +634,9 @@
                     statusBar.classList.add('border-rose-500/30', 'bg-rose-500/10');
                 } catch (err) { alert("Mic permission needed."); }
             } else {
-                mediaRecorder.stop();
+                masterRecorder.stop();
                 isRecording = false;
-                if (activeStream) activeStream.getTracks().forEach(track => track.stop()); 
+                if (masterActiveStream) masterActiveStream.getTracks().forEach(track => track.stop()); 
                 
                 masterBtn.classList.remove('recording-active');
                 masterIcon.classList.replace('fa-stop', 'fa-microphone');
@@ -487,7 +670,7 @@
             }
         }
 
-        // --- IMAGE ---
+        // --- 5. IMAGE SCANNING ---
         async function uploadReceipt(event) {
             const file = event.target.files[0];
             if (!file) return;
