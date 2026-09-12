@@ -152,6 +152,23 @@
                     </div>
                 </div>
 
+                <!-- AI Advisor Card -->
+                <div class="mb-6 relative glass-panel rounded-2xl p-1 overflow-hidden group">
+                    <div class="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-emerald-500/10 opacity-50"></div>
+                    <div class="relative bg-[#020617]/90 rounded-xl p-4 flex items-start space-x-4">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0">
+                            <i class="fa-solid fa-wand-magic-sparkles text-white text-sm"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center mb-1">
+                                <h3 class="font-bold text-sm text-indigo-400">AI Business Advisor</h3>
+                                <button onclick="getAIAdvice()" id="ai-btn" class="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-md hover:bg-indigo-500/40 transition-all font-semibold shadow-sm border border-indigo-500/30">Analyze</button>
+                            </div>
+                            <p id="ai-advice-text" class="text-xs text-slate-400 leading-relaxed">Tap analyze to let Gemini review your daily sales and outstanding Udhar.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- NEW: Real-time Search Filter -->
                 <div class="mb-6 relative">
                     <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
@@ -239,9 +256,15 @@
                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Net Balance</span>
                     <span id="profile-net-balance" class="text-3xl font-extrabold text-white tracking-tight">₹0</span>
                 </div>
-                <a id="profile-whatsapp-btn" href="#" target="_blank" class="hidden bg-gradient-to-br from-emerald-400 to-emerald-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(16,185,129,0.3)] hover:shadow-[0_8px_25px_rgba(16,185,129,0.5)] transition-all">
-                    <i class="fa-brands fa-whatsapp text-2xl"></i>
-                </a>
+                <div class="flex space-x-2">
+                    <!-- New Settle Button -->
+                    <button id="profile-settle-btn" class="hidden bg-gradient-to-br from-indigo-500 to-purple-600 text-white w-12 h-12 rounded-2xl items-center justify-center shadow-[0_8px_20px_rgba(99,102,241,0.3)] hover:shadow-[0_8px_25px_rgba(99,102,241,0.5)] transition-all" title="Settle Account">
+                        <i class="fa-solid fa-handshake text-xl"></i>
+                    </button>
+                    <a id="profile-whatsapp-btn" href="#" target="_blank" class="hidden bg-gradient-to-br from-emerald-400 to-emerald-600 text-white w-12 h-12 rounded-2xl items-center justify-center shadow-[0_8px_20px_rgba(16,185,129,0.3)] hover:shadow-[0_8px_25px_rgba(16,185,129,0.5)] transition-all">
+                        <i class="fa-brands fa-whatsapp text-2xl"></i>
+                    </a>
+                </div>
             </div>
 
             <h4 class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">History</h4>
@@ -422,7 +445,6 @@
 
         // --- 3. LEDGER RENDERING & FILTER LOGIC ---
         
-        // NEW: Real-time filter logic
         function filterLedger() {
             const term = document.getElementById('search-input').value.toLowerCase();
             
@@ -432,7 +454,6 @@
                 return nameMatch || itemsMatch;
             });
             
-            // Pass the filtered data to the render function
             renderLedger(filteredData);
         }
 
@@ -447,7 +468,6 @@
             return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         }
 
-        // UPDATED: Now accepts an argument so it can render search results
         function renderLedger(dataToRender = allTransactions) {
             ledgerList.innerHTML = '';
             totalCredit = 0;
@@ -490,7 +510,6 @@
                     const safeName = data.customer_name || 'Unknown';
                     const items = Array.isArray(data.items_purchased) && data.items_purchased.length > 0 ? data.items_purchased.join(', ') : 'Manual Entry';
 
-                    // NEW: Generate the Low Stock Warning Badge HTML
                     let stockWarningHtml = '';
                     if (Array.isArray(data.low_stock_flags) && data.low_stock_flags.length > 0) {
                         stockWarningHtml = `<div class="mt-1.5 flex flex-wrap gap-1">
@@ -534,7 +553,7 @@
                 });
                 if (res.ok) {
                     allTransactions = await res.json();
-                    renderLedger(); // Initial load passes all data
+                    renderLedger(); 
                 }
             } catch (err) {}
         }
@@ -548,7 +567,7 @@
                 });
                 if (res.ok) {
                     allTransactions = allTransactions.filter(t => t.id !== id);
-                    filterLedger(); // Re-run the active filter so items don't reappear
+                    filterLedger(); 
                 }
             } catch (err) {}
         }
@@ -573,7 +592,7 @@
                     const data = await res.json();
                     allTransactions.unshift(data);
                     
-                    document.getElementById('search-input').value = ''; // Reset search bar on new entry
+                    document.getElementById('search-input').value = ''; 
                     renderLedger();
                     
                     toggleModal();
@@ -618,10 +637,20 @@
             netBalanceEl.className = netPending > 0 ? "text-3xl font-extrabold text-rose-400 tracking-tight" : "text-3xl font-extrabold text-emerald-400 tracking-tight";
 
             const waBtn = document.getElementById('profile-whatsapp-btn');
+            const settleBtn = document.getElementById('profile-settle-btn');
+            
             if (netPending > 0) {
+                // Show WhatsApp
                 waBtn.href = `https://wa.me/?text=${encodeURIComponent(`Hello ${customerName}, pending balance: ₹${netPending}. Please clear it.`)}`;
-                waBtn.classList.remove('hidden');
-            } else waBtn.classList.add('hidden');
+                waBtn.classList.remove('hidden'); waBtn.classList.add('flex');
+                
+                // Show Settle Button
+                settleBtn.onclick = () => settleAccount(customerName, netPending);
+                settleBtn.classList.remove('hidden'); settleBtn.classList.add('flex');
+            } else {
+                waBtn.classList.add('hidden'); waBtn.classList.remove('flex');
+                settleBtn.classList.add('hidden'); settleBtn.classList.remove('flex');
+            }
 
             toggleProfileModal();
         }
@@ -678,7 +707,7 @@
                 const transaction = await res.json();
                 allTransactions.unshift(transaction);
                 
-                document.getElementById('search-input').value = ''; // Clear search bar on new entry
+                document.getElementById('search-input').value = ''; 
                 renderLedger();
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
                 
@@ -752,6 +781,62 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        }
+
+        // --- 6. ADVANCED FEATURES (AI & SETTLEMENT) ---
+        async function getAIAdvice() {
+            const textEl = document.getElementById('ai-advice-text');
+            const btn = document.getElementById('ai-btn');
+            
+            textEl.textContent = "Analyzing your ledger data...";
+            textEl.className = "text-xs text-indigo-400 animate-pulse leading-relaxed";
+            btn.disabled = true;
+            
+            try {
+                const res = await fetch('/ai-advisor', {
+                    headers: { 'x-vendor-phone': localStorage.getItem('vendor_phone') }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    textEl.textContent = data.advice;
+                    textEl.className = "text-xs text-slate-200 leading-relaxed font-medium";
+                } else throw new Error();
+            } catch (err) {
+                textEl.textContent = "Failed to generate insights. Try again.";
+                textEl.className = "text-xs text-rose-400 leading-relaxed";
+            } finally { btn.disabled = false; }
+        }
+
+        async function settleAccount(customerName, amount) {
+            if (!confirm(`Mark ₹${amount} as fully paid by ${customerName}?`)) return;
+            
+            const btn = document.getElementById('profile-settle-btn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xl"></i>';
+            
+            try {
+                const res = await fetch('/add-transaction', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-vendor-phone': localStorage.getItem('vendor_phone')
+                    },
+                    body: JSON.stringify({ 
+                        customer_name: customerName, 
+                        amount: parseFloat(amount), 
+                        transaction_type: 'paid',
+                        items_purchased: ['Account Settled'] 
+                    })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    allTransactions.unshift(data);
+                    document.getElementById('search-input').value = '';
+                    renderLedger();
+                    openCustomerProfile(customerName); // Refresh the modal
+                    if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+                }
+            } catch (err) {}
+            finally { btn.innerHTML = '<i class="fa-solid fa-handshake text-xl"></i>'; }
         }
     </script>
 </body>
