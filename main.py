@@ -180,6 +180,7 @@ async def add_transaction(transaction: ManualTransaction, x_vendor_phone: str = 
         "amount": transaction.amount,
         "transaction_type": transaction.transaction_type,
         "items_purchased": ["Manual Entry"],
+        "low_stock_flags": [],
         "vendor_phone": x_vendor_phone # TAG IT: Connect transaction to vendor
     }
     try:
@@ -209,19 +210,22 @@ async def extract_audio(audio_file: UploadFile = File(...), x_vendor_phone: str 
         incoming_type = audio_file.content_type or ""
         safe_mime_type = "audio/mp4" if "mp4" in incoming_type else "audio/webm"
         
+        # UPDATED PROMPT: Added low_stock_flags requirement
         prompt = """
         Listen to this audio transaction. Extract the following details and return ONLY a raw JSON object.
-        - customer_name: Name of the customer
+        - customer_name: Name of the customer (if none stated, use "Walk-in")
         - amount: Total amount as a number
         - transaction_type: "credit" (if it's udhar/unpaid/credit) or "paid" (if it's jama/paid/cash)
         - items_purchased: List of strings of items mentioned
+        - low_stock_flags: Listen carefully. If the shopkeeper mentions any item is running low, out of stock, or needs to be reordered (e.g., "khatam ho gaya", "stock kam hai", "order karna hai"), add those items to this list. If none, return an empty array [].
         
         JSON format:
         {
           "customer_name": "string",
           "amount": 0,
           "transaction_type": "string",
-          "items_purchased": ["string"]
+          "items_purchased": ["string"],
+          "low_stock_flags": ["string"]
         }
         """
         
@@ -237,6 +241,10 @@ async def extract_audio(audio_file: UploadFile = File(...), x_vendor_phone: str 
         
         if "amount" in transaction_data:
             transaction_data["amount"] = int(round(float(transaction_data["amount"])))
+            
+        # Ensure array exists even if Gemini forgets
+        if "low_stock_flags" not in transaction_data:
+            transaction_data["low_stock_flags"] = []
             
         # TAG IT: Connect the AI extracted transaction to the vendor
         transaction_data["vendor_phone"] = x_vendor_phone
@@ -258,19 +266,22 @@ async def extract_receipt(receipt_image: UploadFile = File(...), x_vendor_phone:
         image_bytes = await receipt_image.read()
         mime_type = receipt_image.content_type or "image/jpeg"
         
+        # UPDATED PROMPT: Added low_stock_flags requirement
         prompt = """
         Analyze this receipt, bill, or handwritten ledger note. Extract the following details and return ONLY a raw JSON object.
         - customer_name: Name of the customer (if not found, use "Walk-in Customer")
         - amount: Total amount as a number
         - transaction_type: "paid" (if it looks like a standard cash receipt or bill) or "credit" (if it mentions udhar, due, balance, or unpaid). If unsure, default to "paid".
         - items_purchased: List of strings of items mentioned
+        - low_stock_flags: If the note mentions any item is low on stock, empty, or needs to be ordered, add it to this list. If none, return an empty array [].
         
         JSON format:
         {
           "customer_name": "string",
           "amount": 0,
           "transaction_type": "string",
-          "items_purchased": ["string"]
+          "items_purchased": ["string"],
+          "low_stock_flags": ["string"]
         }
         """
         
@@ -286,6 +297,9 @@ async def extract_receipt(receipt_image: UploadFile = File(...), x_vendor_phone:
         
         if "amount" in transaction_data:
             transaction_data["amount"] = int(round(float(transaction_data["amount"])))
+            
+        if "low_stock_flags" not in transaction_data:
+            transaction_data["low_stock_flags"] = []
             
         # TAG IT: Connect the AI extracted receipt to the vendor
         transaction_data["vendor_phone"] = x_vendor_phone
