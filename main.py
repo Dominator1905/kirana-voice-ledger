@@ -44,7 +44,7 @@ if not API_KEYS:
 current_key_index = 0
 
 def ask_gemini_with_rotation(prompt, file_bytes, mime_type):
-    """Tries to ask Gemini for multimodal (audio/vision). If the key is exhausted, it rotates to the next one."""
+    """Tries to ask Gemini for multimodal (audio/vision)."""
     global current_key_index
     attempts = 0
     max_attempts = len(API_KEYS)
@@ -65,21 +65,18 @@ def ask_gemini_with_rotation(prompt, file_bytes, mime_type):
             return response.text.strip()
             
         except Exception as e:
-            error_message = str(e).lower()
-            if "429" in error_message or "quota" in error_message or "exhausted" in error_message:
-                print(f"Key #{current_key_index + 1} is exhausted! Switching keys...")
-                current_key_index = (current_key_index + 1) % len(API_KEYS)
-                attempts += 1
-            else:
-                raise e
+            print(f"MULTIMODAL ERROR: {str(e)}")
+            current_key_index = (current_key_index + 1) % len(API_KEYS)
+            attempts += 1
                 
-    raise Exception("ALL API KEYS HAVE EXHAUSTED THEIR QUOTAS!")
+    raise Exception("ALL API KEYS FAILED!")
 
 def ask_gemini_text(prompt):
     """Uses Gemini for text-only analysis tasks."""
     global current_key_index
     attempts = 0
     max_attempts = len(API_KEYS)
+    last_error = ""
     
     while attempts < max_attempts:
         active_key = API_KEYS[current_key_index]
@@ -87,22 +84,21 @@ def ask_gemini_text(prompt):
         
         try:
             client = genai.Client(api_key=active_key)
+            # FIX 1: Passed as a direct string, not a list
             response = client.models.generate_content(
                 model='gemini-1.5-flash',
-                contents=[prompt]
+                contents=prompt
             )
             return response.text.strip()
             
         except Exception as e:
-            error_message = str(e).lower()
-            if "429" in error_message or "quota" in error_message or "exhausted" in error_message:
-                print(f"Key #{current_key_index + 1} is exhausted! Switching keys...")
-                current_key_index = (current_key_index + 1) % len(API_KEYS)
-                attempts += 1
-            else:
-                raise e
+            last_error = str(e)
+            print(f"TEXT ANALYSIS ERROR: {last_error}")
+            # Rotate key on ANY error just to be safe
+            current_key_index = (current_key_index + 1) % len(API_KEYS)
+            attempts += 1
                 
-    raise Exception("ALL API KEYS HAVE EXHAUSTED THEIR QUOTAS!")
+    raise Exception(f"AI failed to generate insights. Last error: {last_error}")
 
 
 # --- MODELS ---
@@ -110,7 +106,7 @@ class ManualTransaction(BaseModel):
     customer_name: str
     amount: float
     transaction_type: str
-    items_purchased: Optional[List[str]] = ["Manual Entry"] # Updated for Settle Account
+    items_purchased: Optional[List[str]] = ["Manual Entry"]
 
 class LoginRequest(BaseModel):
     phone_number: str
@@ -161,7 +157,6 @@ async def voice_login(audio: UploadFile = File(...)):
         
         result_text = ask_gemini_with_rotation(prompt, audio_bytes, safe_mime_type)
         
-        # Parse JSON safely
         if "```json" in result_text:
             result_text = result_text.split("```json")[1].split("```")[0].strip()
         elif "```" in result_text:
@@ -171,7 +166,6 @@ async def voice_login(audio: UploadFile = File(...)):
         shop_name = extracted.get("shop_name", "")
         pin = str(extracted.get("pin", ""))
         
-        # Authenticate against DB
         response = supabase.table("vendors").select("*").ilike("shop_name", f"%{shop_name}%").eq("pin", pin).execute()
         
         if not response.data:
@@ -185,7 +179,6 @@ async def voice_login(audio: UploadFile = File(...)):
         }
     except Exception as e:
         print(f"AUTH AUDIO ERROR: {str(e)}")
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -195,7 +188,6 @@ async def get_transactions(x_vendor_phone: str = Header(None)):
     if not x_vendor_phone:
         raise HTTPException(status_code=401, detail="Unauthorized: Missing vendor phone")
     try:
-        # FILTER: Only get transactions matching this vendor's phone number
         response = supabase.table("transactions").select("*").eq("vendor_phone", x_vendor_phone).order("created_at", desc=True).execute()
         return response.data
     except Exception as e:
@@ -212,7 +204,7 @@ async def add_transaction(transaction: ManualTransaction, x_vendor_phone: str = 
         "transaction_type": transaction.transaction_type,
         "items_purchased": transaction.items_purchased,
         "low_stock_flags": [],
-        "vendor_phone": x_vendor_phone # TAG IT: Connect transaction to vendor
+        "vendor_phone": x_vendor_phone 
     }
     try:
         response = supabase.table("transactions").insert(data).execute()
@@ -225,7 +217,6 @@ async def delete_transaction(transaction_id: str, x_vendor_phone: str = Header(N
     if not x_vendor_phone:
         raise HTTPException(status_code=401, detail="Unauthorized")
     try:
-        # SECURITY: Ensure they can only delete their own transactions
         supabase.table("transactions").delete().eq("id", transaction_id).eq("vendor_phone", x_vendor_phone).execute()
         return {"status": "success"}
     except Exception as e:
@@ -236,16 +227,21 @@ async def get_ai_advice(x_vendor_phone: str = Header(None)):
     if not x_vendor_phone:
         raise HTTPException(status_code=401, detail="Unauthorized")
     try:
-        # Fetch recent transactions to give the AI context
-        response = supabase.table("transactions").select("*").eq("vendor_phone", x_vendor_phone).order("created_at", desc=True).limit(50).execute()
+        # FIX 2: Bulletproof data fetching. Pull everything for this vendor and sort it safely in Python
+        response = supabase.table("transactions").select("*").eq("vendor_phone", x_vendor_phone).execute()
         transactions = response.data
         
         if not transactions:
             return {"advice": "Your ledger is empty. Start adding transactions to get business insights!"}
+            
+        # Sort in Python to avoid Supabase syntax errors, grab top 50
+        transactions.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        transactions = transactions[:50]
         
         tx_summary = []
         for t in transactions:
-            tx_summary.append(f"Name: {t.get('customer_name')}, Type: {t.get('transaction_type')}, Amount: {t.get('amount')}, Items: {t.get('items_purchased')}")
+            items = t.get('items_purchased', [])
+            tx_summary.append(f"Name: {t.get('customer_name')}, Type: {t.get('transaction_type')}, Amount: {t.get('amount')}, Items: {items}")
         
         data_string = "\n".join(tx_summary)
         
@@ -258,9 +254,13 @@ async def get_ai_advice(x_vendor_phone: str = Header(None)):
         Focus on cash flow (high Udhar), top customers, or fast-moving items. 
         Use a helpful, encouraging tone. Do not use markdown formatting.
         """
+        
         advice = ask_gemini_text(prompt)
         return {"advice": advice}
+        
     except Exception as e:
+        print(f"ADVISOR ROUTE ERROR: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/extract-audio")
@@ -273,7 +273,6 @@ async def extract_audio(audio_file: UploadFile = File(...), x_vendor_phone: str 
         incoming_type = audio_file.content_type or ""
         safe_mime_type = "audio/mp4" if "mp4" in incoming_type else "audio/webm"
         
-        # UPDATED PROMPT: Added low_stock_flags requirement
         prompt = """
         Listen to this audio transaction. Extract the following details and return ONLY a raw JSON object.
         - customer_name: Name of the customer (if none stated, use "Walk-in")
@@ -294,7 +293,6 @@ async def extract_audio(audio_file: UploadFile = File(...), x_vendor_phone: str 
         
         result_text = ask_gemini_with_rotation(prompt, audio_bytes, safe_mime_type)
         
-        # Parse JSON
         if "```json" in result_text:
             result_text = result_text.split("```json")[1].split("```")[0].strip()
         elif "```" in result_text:
@@ -305,11 +303,9 @@ async def extract_audio(audio_file: UploadFile = File(...), x_vendor_phone: str 
         if "amount" in transaction_data:
             transaction_data["amount"] = int(round(float(transaction_data["amount"])))
             
-        # Ensure array exists even if Gemini forgets
         if "low_stock_flags" not in transaction_data:
             transaction_data["low_stock_flags"] = []
             
-        # TAG IT: Connect the AI extracted transaction to the vendor
         transaction_data["vendor_phone"] = x_vendor_phone
         
         db_response = supabase.table("transactions").insert(transaction_data).execute()
@@ -317,7 +313,6 @@ async def extract_audio(audio_file: UploadFile = File(...), x_vendor_phone: str 
         
     except Exception as e:
         print(f"AUDIO ERROR: {str(e)}")
-        traceback.print_exc() 
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/extract-receipt")
@@ -329,7 +324,6 @@ async def extract_receipt(receipt_image: UploadFile = File(...), x_vendor_phone:
         image_bytes = await receipt_image.read()
         mime_type = receipt_image.content_type or "image/jpeg"
         
-        # UPDATED PROMPT: Added low_stock_flags requirement
         prompt = """
         Analyze this receipt, bill, or handwritten ledger note. Extract the following details and return ONLY a raw JSON object.
         - customer_name: Name of the customer (if not found, use "Walk-in Customer")
@@ -350,7 +344,6 @@ async def extract_receipt(receipt_image: UploadFile = File(...), x_vendor_phone:
         
         result_text = ask_gemini_with_rotation(prompt, image_bytes, mime_type)
         
-        # Parse JSON
         if "```json" in result_text:
             result_text = result_text.split("```json")[1].split("```")[0].strip()
         elif "```" in result_text:
@@ -364,7 +357,6 @@ async def extract_receipt(receipt_image: UploadFile = File(...), x_vendor_phone:
         if "low_stock_flags" not in transaction_data:
             transaction_data["low_stock_flags"] = []
             
-        # TAG IT: Connect the AI extracted receipt to the vendor
         transaction_data["vendor_phone"] = x_vendor_phone
         
         db_response = supabase.table("transactions").insert(transaction_data).execute()
@@ -372,5 +364,4 @@ async def extract_receipt(receipt_image: UploadFile = File(...), x_vendor_phone:
         
     except Exception as e:
         print(f"RECEIPT ERROR: {str(e)}")
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
