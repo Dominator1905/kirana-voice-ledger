@@ -1,6 +1,6 @@
 import os
 import json
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -55,7 +55,7 @@ def ask_gemini_with_rotation(prompt, file_bytes, mime_type):
         try:
             client = genai.Client(api_key=active_key)
             response = client.models.generate_content(
-                model='gemini-3.6-flash', # Updated to 1.5-flash for speed/reliability
+                model='gemini-3.6-flash', # Corrected model name
                 contents=[
                     types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
                     prompt
@@ -160,20 +160,27 @@ async def voice_login(audio: UploadFile = File(...)):
 
 # --- LEDGER / TRANSACTION ROUTES ---
 @app.get("/transactions")
-async def get_transactions():
+async def get_transactions(x_vendor_phone: str = Header(None)):
+    if not x_vendor_phone:
+        raise HTTPException(status_code=401, detail="Unauthorized: Missing vendor phone")
     try:
-        response = supabase.table("transactions").select("*").order("created_at", desc=True).execute()
+        # FILTER: Only get transactions matching this vendor's phone number
+        response = supabase.table("transactions").select("*").eq("vendor_phone", x_vendor_phone).order("created_at", desc=True).execute()
         return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/add-transaction")
-async def add_transaction(transaction: ManualTransaction):
+async def add_transaction(transaction: ManualTransaction, x_vendor_phone: str = Header(None)):
+    if not x_vendor_phone:
+        raise HTTPException(status_code=401, detail="Unauthorized: Missing vendor phone")
+        
     data = {
         "customer_name": transaction.customer_name,
         "amount": transaction.amount,
         "transaction_type": transaction.transaction_type,
-        "items_purchased": ["Manual Entry"]
+        "items_purchased": ["Manual Entry"],
+        "vendor_phone": x_vendor_phone # TAG IT: Connect transaction to vendor
     }
     try:
         response = supabase.table("transactions").insert(data).execute()
@@ -182,15 +189,21 @@ async def add_transaction(transaction: ManualTransaction):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/transactions/{transaction_id}")
-async def delete_transaction(transaction_id: str):
+async def delete_transaction(transaction_id: str, x_vendor_phone: str = Header(None)):
+    if not x_vendor_phone:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     try:
-        supabase.table("transactions").delete().eq("id", transaction_id).execute()
+        # SECURITY: Ensure they can only delete their own transactions
+        supabase.table("transactions").delete().eq("id", transaction_id).eq("vendor_phone", x_vendor_phone).execute()
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/extract-audio")
-async def extract_audio(audio_file: UploadFile = File(...)):
+async def extract_audio(audio_file: UploadFile = File(...), x_vendor_phone: str = Header(None)):
+    if not x_vendor_phone:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
     try:
         audio_bytes = await audio_file.read()
         incoming_type = audio_file.content_type or ""
@@ -224,6 +237,9 @@ async def extract_audio(audio_file: UploadFile = File(...)):
         
         if "amount" in transaction_data:
             transaction_data["amount"] = int(round(float(transaction_data["amount"])))
+            
+        # TAG IT: Connect the AI extracted transaction to the vendor
+        transaction_data["vendor_phone"] = x_vendor_phone
         
         db_response = supabase.table("transactions").insert(transaction_data).execute()
         return db_response.data[0]
@@ -234,7 +250,10 @@ async def extract_audio(audio_file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/extract-receipt")
-async def extract_receipt(receipt_image: UploadFile = File(...)):
+async def extract_receipt(receipt_image: UploadFile = File(...), x_vendor_phone: str = Header(None)):
+    if not x_vendor_phone:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
     try:
         image_bytes = await receipt_image.read()
         mime_type = receipt_image.content_type or "image/jpeg"
@@ -267,6 +286,9 @@ async def extract_receipt(receipt_image: UploadFile = File(...)):
         
         if "amount" in transaction_data:
             transaction_data["amount"] = int(round(float(transaction_data["amount"])))
+            
+        # TAG IT: Connect the AI extracted receipt to the vendor
+        transaction_data["vendor_phone"] = x_vendor_phone
         
         db_response = supabase.table("transactions").insert(transaction_data).execute()
         return db_response.data[0]
