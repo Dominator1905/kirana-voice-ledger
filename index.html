@@ -278,14 +278,16 @@
         function logout() {
             localStorage.removeItem("vendor_logged_in");
             localStorage.removeItem("vendor_shop_name");
+            localStorage.removeItem("vendor_phone"); // Clear the phone number tag!
             window.location.reload();
         }
 
         // Complete Login & Save Session
-        function completeLogin(shopName) {
+        function completeLogin(shopName, phone) {
             // Save to localStorage
             localStorage.setItem("vendor_logged_in", "true");
             localStorage.setItem("vendor_shop_name", shopName);
+            localStorage.setItem("vendor_phone", phone); // SAVE PHONE NUMBER FOR HEADERS
 
             loginStatusText.textContent = "Success!";
             loginStatusText.className = "mt-4 text-sm font-bold h-5 text-emerald-400";
@@ -326,7 +328,7 @@
                     body: JSON.stringify({ phone_number: phone, pin: pin })
                 });
                 const data = await res.json();
-                if (res.ok) completeLogin(data.vendor.shop_name);
+                if (res.ok) completeLogin(data.vendor.shop_name, data.vendor.phone_number); // Passes phone
                 else showLoginError(data.detail || "Invalid credentials");
             } catch (err) {
                 showLoginError("Server error.");
@@ -385,7 +387,7 @@
                 try {
                     const res = await fetch('/auth/voice', { method: 'POST', body: formData });
                     const data = await res.json();
-                    if (res.ok) completeLogin(data.vendor.shop_name);
+                    if (res.ok) completeLogin(data.vendor.shop_name, data.vendor.phone_number); // Passes phone
                     else showLoginError("Voice match failed. Try again.");
                 } catch (err) {
                     showLoginError("Server error.");
@@ -521,7 +523,10 @@
 
         async function loadLedgerData() {
             try {
-                const res = await fetch('/transactions');
+                // ADDED: Send the x-vendor-phone header so the backend filters data securely
+                const res = await fetch('/transactions', {
+                    headers: { 'x-vendor-phone': localStorage.getItem('vendor_phone') }
+                });
                 if (res.ok) {
                     allTransactions = await res.json();
                     renderLedger();
@@ -532,7 +537,11 @@
         async function deleteTransaction(id) {
             if (!confirm("Delete record?")) return;
             try {
-                const res = await fetch(`/transactions/${id}`, { method: 'DELETE' });
+                // ADDED: Send the x-vendor-phone header
+                const res = await fetch(`/transactions/${id}`, { 
+                    method: 'DELETE',
+                    headers: { 'x-vendor-phone': localStorage.getItem('vendor_phone') }
+                });
                 if (res.ok) {
                     allTransactions = allTransactions.filter(t => t.id !== id);
                     renderLedger();
@@ -548,9 +557,13 @@
 
             saveBtn.textContent = "Saving...";
             try {
+                // ADDED: Send the x-vendor-phone header
                 const res = await fetch('/add-transaction', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-vendor-phone': localStorage.getItem('vendor_phone')
+                    },
                     body: JSON.stringify({ customer_name: name, amount: parseFloat(amount), transaction_type: manualType })
                 });
                 if (res.ok) {
@@ -650,7 +663,12 @@
             const formData = new FormData();
             formData.append("audio_file", blob, "recording.webm");
             try {
-                const res = await fetch('/extract-audio', { method: 'POST', body: formData });
+                // ADDED: Send the x-vendor-phone header
+                const res = await fetch('/extract-audio', { 
+                    method: 'POST', 
+                    headers: { 'x-vendor-phone': localStorage.getItem('vendor_phone') },
+                    body: formData 
+                });
                 if(!res.ok) throw new Error("API Limit");
                 const transaction = await res.json();
                 allTransactions.unshift(transaction);
@@ -683,7 +701,12 @@
             formData.append("receipt_image", file);
 
             try {
-                const res = await fetch('/extract-receipt', { method: 'POST', body: formData });
+                // ADDED: Send the x-vendor-phone header
+                const res = await fetch('/extract-receipt', { 
+                    method: 'POST', 
+                    headers: { 'x-vendor-phone': localStorage.getItem('vendor_phone') },
+                    body: formData 
+                });
                 if(!res.ok) throw new Error("API Limit");
                 
                 const transaction = await res.json();
