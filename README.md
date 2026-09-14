@@ -35,7 +35,7 @@ Local shopkeepers (like the local *Paan Bhandar* or *Kirana* store) lose track o
 
 *   **Frontend:** HTML5, Vanilla JavaScript, Tailwind CSS (Glassmorphism Theme)
 *   **Backend:** Python, FastAPI
-*   **Artificial Intelligence:** Google Gemini API (1.5 Flash Model)
+*   **Artificial Intelligence:** Google Gemini API (3.6 Flash Model)
 *   **Database:** Supabase (PostgreSQL)
 *   **Deployment:** Render (Backend/API) & GitHub
 
