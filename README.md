@@ -60,6 +60,10 @@ Follow these steps to run the project locally on your machine.
 * A Supabase Account & Project
 * Google Gemini API Keys
 
+* ### for LOGIN
+* USE 00000 00000
+* PASSWORD  0000
+
 ### 1. Clone the Repository
 ```bash
 git clone [https://github.com/your-username/kirana-voice-ledger.git](https://github.com/your-username/kirana-voice-ledger.git)
