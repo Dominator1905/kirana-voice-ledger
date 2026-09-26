@@ -14,7 +14,7 @@ import traceback
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(title="Smart-Budget AI Support Agent")
+app = FastAPI(title="KhataManager Pro API")
 
 # Enable CORS for frontend communication
 app.add_middleware(
@@ -56,7 +56,7 @@ def ask_gemini_with_rotation(prompt, file_bytes, mime_type):
         try:
             client = genai.Client(api_key=active_key)
             response = client.models.generate_content(
-                model='gemini-3.6-flash',
+                model='gemini-3.6-flash', # Adjust model version to valid current string (e.g. gemini-3.6-flash)
                 contents=[
                     types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
                     prompt
@@ -84,9 +84,8 @@ def ask_gemini_text(prompt):
         
         try:
             client = genai.Client(api_key=active_key)
-            # FIX 1: Passed as a direct string, not a list
             response = client.models.generate_content(
-                model='gemini-3.6-flash',
+                model='gemini-2.5-flash',
                 contents=prompt
             )
             return response.text.strip()
@@ -94,7 +93,6 @@ def ask_gemini_text(prompt):
         except Exception as e:
             last_error = str(e)
             print(f"TEXT ANALYSIS ERROR: {last_error}")
-            # Rotate key on ANY error just to be safe
             current_key_index = (current_key_index + 1) % len(API_KEYS)
             attempts += 1
                 
@@ -130,12 +128,24 @@ async def get_sw():
 # --- AUTHENTICATION ROUTES ---
 @app.post("/auth/fallback")
 async def fallback_login(req: LoginRequest):
+    # 🚨 HACKATHON JUDGE BYPASS 🚨
+    if req.phone_number == "0000000000" and req.pin == "0000":
+        return {
+            "status": "success",
+            "vendor": {
+                "shop_name": "OpenAI Club Judge Demo", 
+                "phone_number": "0000000000"
+            }
+        }
+
     try:
         response = supabase.table("vendors").select("*").eq("phone_number", req.phone_number).eq("pin", req.pin).execute()
         if not response.data:
             raise HTTPException(status_code=401, detail="Invalid phone number or PIN")
         return {"status": "success", "vendor": response.data[0]}
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/auth/voice")
@@ -227,14 +237,12 @@ async def get_ai_advice(x_vendor_phone: str = Header(None)):
     if not x_vendor_phone:
         raise HTTPException(status_code=401, detail="Unauthorized")
     try:
-        # FIX 2: Bulletproof data fetching. Pull everything for this vendor and sort it safely in Python
         response = supabase.table("transactions").select("*").eq("vendor_phone", x_vendor_phone).execute()
         transactions = response.data
         
         if not transactions:
             return {"advice": "Your ledger is empty. Start adding transactions to get business insights!"}
             
-        # Sort in Python to avoid Supabase syntax errors, grab top 50
         transactions.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         transactions = transactions[:50]
         
